@@ -1,0 +1,3 @@
+[submodule "gnutls"]
+	path = gnutls
+	url = git://git.savannah.gnu.org/gnutls.git

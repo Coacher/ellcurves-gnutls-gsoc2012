@@ -9,11 +9,11 @@ def print_table_of_values(w = 1):
 def generate_data(P, w, min_value = 10, max_value = 1024, step = 11, printtimings = False):
     if (printtimings):
         print("{0:>10}\t\t{1:>25}\t\t{2:>25}\t\t{3:>5}".format("n", "wMNAF time", "SAGE time", "Check"))
-    
+
     graph = []
     for k in [1, 2, 3, 5, 7] + range(min_value, max_value, step):
         n = Integer(k)
-        
+
         t0 = time.clock()
         wnaf = scalar_multiply(n, P, w)
         wnaf_time = time.clock() - t0
@@ -21,14 +21,14 @@ def generate_data(P, w, min_value = 10, max_value = 1024, step = 11, printtiming
         t0 = time.clock()
         default = n*P
         sage_time = time.clock() - t0
-    
+
         if (sage_time != 0) and (wnaf_time != 0):
             percentage = 100*wnaf_time/sage_time
             graph.append((k, percentage))
-    
+
         if (printtimings):
             print("{0:>10}\t\t{1:>25}\t\t{2:>25}\t\t{3:>5}".format(k, wnaf_time, sage_time, wnaf == default))
-        
+
     return graph
 
 #secp128r1
@@ -83,4 +83,3 @@ points = generate_data(P[0], 3, min_value, max_value, step)
 G = list_plot(points, plotjoined = True)
 F = line([(min_value,100), (max_value,100)], rgbcolor = (0,0.5,0), linestyle="--")
 plot(F+G)
- 

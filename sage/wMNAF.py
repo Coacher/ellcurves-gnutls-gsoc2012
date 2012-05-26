@@ -40,7 +40,7 @@ def LSB(x, w = 1, base = 2, bits = 1):
 
 def LSB_to_string(x, w = 1, base = 2, bits = 1):
     '''String representation of LSB.
-    
+
     Returned string will be filled with leading zeros and will have exactly `bits` length.'''
     ret = base_representation(LSB(x, w, base, bits), w, base)
     if (len(ret) < bits):
@@ -57,30 +57,33 @@ def wNAF_openssl(x, w = 1, base = 2):
     if (x == 0):
         return "0"
 
+    bit = base ** w
+    next_bit = bit * base
+    mask = next_bit - 1
+
     sign = 1
     if (x < 0):
         sign = -1
         x = abs(x)
-        
-    bit = base ** w
-    next_bit = bit * base
-    mask = next_bit - 1
-    ret = ""
-    j = 0
+
     len = x.nbits()
-    
+    ret = ""
+
     window_val = LSB(x, w + 1, base)
+    j = 0
+
     while (window_val != 0) or (j + w + 1 < len):
         digit = 0
-        if (LSB(window_val) == 1):
-            if (window_val >= bit):
+        if (LSB(window_val) & 1):
+            if (window_val & bit):
                 digit = window_val - next_bit
             else:
                 digit = window_val
             window_val -= digit
-            
+
         ret = base_representation(sign*digit, w, base) + ret
         j += 1
+
         window_val //= base
         window_val += get_bit(x, w + j) * bit
     return ret
@@ -89,33 +92,36 @@ def wMNAF_openssl(x, w = 1, base = 2):
     '''wMNAF implementation used in OpenSSL. Only works with bases that are powers of 2.'''
     if (x == 0):
         return "0"
-        
+
+    bit = base ** w
+    next_bit = bit * base
+    mask = next_bit - 1
+
     sign = 1
     if (x < 0):
         sign = -1
         x = abs(x)
-        
-    bit = base ** w
-    next_bit = bit * base
-    mask = next_bit - 1
-    ret = ""
-    j = 0
+
     len = x.nbits()
-    
+    ret = ""
+
     window_val = LSB(x, w + 1, base)
+    j = 0
+
     while (window_val != 0) or (j + w + 1 < len):
         digit = 0
-        if (LSB(window_val) == 1):
-            if (window_val >= bit):
+        if (LSB(window_val) & 1):
+            if (window_val & bit):
                 digit = window_val - next_bit
                 if (j + w + 1 >= len):
                     digit = window_val & (mask // base)
             else:
                 digit = window_val
             window_val -= digit
-            
+
         ret = base_representation(sign*digit, w, base) + ret
         j += 1
+
         window_val //= base
         window_val += get_bit(x, w + j) * bit
     return ret
@@ -130,8 +136,8 @@ def wNAF(x, w = 1, base = 2):
         sign = -1
         x = abs(x)
 
-    ret = []    
-    
+    ret = []
+
     while (x > 0):
         if (LSB(x, 1, base)):
             digit = LSB(x, w + 1, base)
@@ -142,7 +148,7 @@ def wNAF(x, w = 1, base = 2):
             digit = 0
         ret = [sign*digit] + ret
         x //= base
-        
+
     return ret
 
 def wMNAF(x, w = 1, base = 2):
@@ -154,12 +160,12 @@ def wMNAF(x, w = 1, base = 2):
     if (x < 0):
         sign = -1
         x = abs(x)
-    
-    mask = (base ** w) - 1    
-    ret = []        
+
+    mask = (base ** w) - 1
+    ret = []
     j = 0
     len = x.nbits()
-    
+
     while (x > 0) or (j + w + 1 < len):
         if (LSB(x, 1, base)):
             digit = LSB(x, w + 1, base)
@@ -173,12 +179,12 @@ def wMNAF(x, w = 1, base = 2):
         ret = [sign*digit] + ret
         x //= base
         j += 1
-        
+
     return ret
 
 def precompute_values(P, w = 1, base = 2):
     '''Precomputes multiples of P.
-       
+
     We need only values which are not multiples of base.'''
     pos = []
     neg = []

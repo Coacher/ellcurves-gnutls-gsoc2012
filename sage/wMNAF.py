@@ -53,7 +53,7 @@ def get_bit(x, bitnum, w = 1, base = 2):
     return x % (base ** w)
 
 def wNAF_openssl(x, w = 1, base = 2):
-    '''wNAF implementation used in OpenSSL. Only works with bases that are powers of 2.'''
+    '''wNAF implementation used in OpenSSL. Only works with base == 2.'''
     if (x == 0):
         return "0"
 
@@ -89,7 +89,7 @@ def wNAF_openssl(x, w = 1, base = 2):
     return ret
 
 def wMNAF_openssl(x, w = 1, base = 2):
-    '''wMNAF implementation used in OpenSSL. Only works with bases that are powers of 2.'''
+    '''wMNAF implementation used in OpenSSL. Only works with base == 2.'''
     if (x == 0):
         return "0"
 
@@ -197,14 +197,13 @@ def precompute_values(P, w = 1, base = 2):
 
 def scalar_multiply(n, pos, neg, w = 1, base = 2, representation = wMNAF):
     form = representation(n, w, base)
-    d = base ** w
     Q = 0
     for digit in form:
-        Q = d*Q
+        Q = base*Q
         if (digit != 0):
             if (digit > 0):
-                Q += pos[ (digit // base)*(base - 1) + (digit % base) - 1 )]
+                Q += pos[ (digit // base)*(base - 1) + (digit % base) - 1]
             else:
                 digit = -digit
-                Q += neg[ (digit // base)*(base - 1) + (digit % base) - 1 )]
+                Q += neg[ (digit // base)*(base - 1) + (digit % base) - 1]
     return Q

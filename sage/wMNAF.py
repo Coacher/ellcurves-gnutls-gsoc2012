@@ -1,8 +1,5 @@
 #!/usr/bin/env python2
 
-import sage
-import time
-
 def digit_to_char(digit):
     if (digit < 10):
         return str(digit)

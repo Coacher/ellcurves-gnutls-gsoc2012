@@ -64,7 +64,7 @@ else:
         print_curve = True
         sys.argv.remove("--print_curve")
 
-output_name = "wMNAF_test_{min}-{max}:{step}_{base}^{w}.pdf".format( \
+output_name = "wMNAF_test_{min}-{max}-{step}_{base},{w}.pdf".format( \
         min = min_value, max = max_value, step = step_value, base = base, w = w)
 
 # elliptic curve to use

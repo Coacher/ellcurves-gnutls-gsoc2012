@@ -84,9 +84,9 @@ if (print_curve):
 
 G = list_plot(points, plotjoined = True)
 F = line([(min_value,100), (max_value,100)], rgbcolor = (0,0.5,0), linestyle="--")
-Legend = text("\n\nGraphic of wMNAF run time in percents. Sage's time is 100%", (0,0), rgbcolor = (0,0,0), \
-               vertical_alignment = "top", horizontal_alignment = "left", axis_coords = True)
-(F+G).plot().save(output_name)
+Legend = text("\n\nGraphic of wMNAF run time in percents. Sage's time is 100%", (min_value ,0), rgbcolor = (0,0,0), \
+               vertical_alignment = "top", horizontal_alignment = "left")
+(Legend.plot() + (F+G).plot()).save(output_name)
 
 finish = time.clock() - start
 print("Finished in {t} secs.".format(t = finish))

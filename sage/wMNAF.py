@@ -84,7 +84,7 @@ def wNAF_openssl(x, w = 1, base = 2):
                 digit = window_val
             window_val -= digit
 
-        ret = base_representation(sign*digit, w, base) + ret
+        ret = [sign*digit] + ret
         j += 1
 
         window_val //= base
@@ -122,7 +122,7 @@ def wMNAF_openssl(x, w = 1, base = 2):
                 digit = window_val
             window_val -= digit
 
-        ret = base_representation(sign*digit, w, base) + ret
+        ret = [sign*digit] + ret
         j += 1
 
         window_val //= base
@@ -228,7 +228,7 @@ def print_table_of_values(min = 1, max = 64, w = 1, base = 2):
         int = k, basew = basew, basewlen = len(basew), \
         wnaf = wnaf, wnaflen = len(wnaf), wmnaf = wmnaf, wmnaflen = len(wmnaf)))
 
-def generate_data(P, w, min_value = 10, max_value = 1024, step = 11, base = 2, with_timings = False):
+def generate_data(P, w, min_value = 100, max_value = 1024, step = 10, base = 2, with_timings = False):
     if (with_timings):
         print("{0:>10}\t\t{1:>25}\t\t{2:>25}\t\t{3:>5}".format("n", "wMNAF time", "SAGE time", "Valid"))
 
@@ -253,7 +253,7 @@ def generate_data(P, w, min_value = 10, max_value = 1024, step = 11, base = 2, w
             print("wMNAF produced incorrect results!")
             print("multiplier was {k}, window size was {w}, base was {base}".format(k = k, w = w, base = base))
             print("point was {point}".format(point = P))
-            exit(EXIT_FAILURE)
+            raise ArithmeticError()
 
         if (sage_time != 0) and (wnaf_time != 0):
             percentage = 100*wnaf_time/sage_time

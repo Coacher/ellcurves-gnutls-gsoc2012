@@ -1,14 +1,17 @@
-#!/usr/bin/env sage
-
 import sys
-from wMNAF import *
+
+load wMNAF.py
+
+EXIT_SUCCESS = 0
+EXIT_FAILURE = 1
 
 l = len(sys.argv)
-min_value  = 100
-max_value  = 500
+min_value  = 500
+max_value  = 1000
 step_value = 10
 w = 4
 base = 2
+print_curve = False
 
 if ("--help" in sys.argv) or ("-h" in sys.argv):
     print("This program will generate output file with runtime comparison")
@@ -19,14 +22,15 @@ if ("--help" in sys.argv) or ("-h" in sys.argv):
     print("--max y -- maximum value of multiplier")
     print("--step z -- multiplier will increase with this step")
     print("Also you can specify optional arguments:")
-    print("--w x -- window size. defauls is 4.")
-    print("--base x -- base to use. defaults is 2. NOT IMPLEMENTED.")
+    print("--w x -- window size. default is 4.")
+    print("--base x -- base to use. default is 2. NOT IMPLEMENTED.")
+    print("--print_curve -- will output curve in a separate file")
     print("\n")
-    exit(EXIT_SUCCESS)
+    sys.exit(EXIT_SUCCESS)
 
 if l < 4:
     print("You must specify at least min, max and step. See --help.")
-    exit(EXIT_FAILURE)
+    sys.exit(EXIT_FAILURE)
 else:
     if "--min" in sys.argv:
         pos = sys.argv.index("--min")
@@ -35,7 +39,7 @@ else:
         sys.argv.remove(min_value)
     else:
         print("You must specify at least min, max and step. See --help.")
-        exit(EXIT_FAILURE)
+        sys.exit(EXIT_FAILURE)
     
     if "--max" in sys.argv:
         pos = sys.argv.index("--max")
@@ -44,7 +48,7 @@ else:
         sys.argv.remove(max_value)
     else:
         print("You must specify at least min, max and step. See --help.")
-        exit(EXIT_FAILURE)
+        sys.exit(EXIT_FAILURE)
     
     if "--step" in sys.argv:
         pos = sys.argv.index("--step")
@@ -53,7 +57,7 @@ else:
         sys.argv.remove(step_value)
     else:
         print("You must specify at least min, max and step. See --help.")
-        exit(EXIT_FAILURE)
+        sys.exit(EXIT_FAILURE)
     
     if "--w" in sys.argv:
         pos = sys.argv.index("--w")
@@ -64,6 +68,10 @@ else:
     if "--base" in sys.argv:
         print("base specifying is not implemented.")
         sys.argv.remove("--base")
+    
+    if "--print_curve" in sys.argv:
+        print_curve = True
+        sys.argv.remove("--print_curve")
 
 output_name = "wMNAF_test_{min}_{max}_{step}__{w}.pdf".format( \
         min = min_value, max = max_value, step = step_value, w = w)
@@ -74,11 +82,12 @@ E = EllipticCurve([3,5])
 # find some points to use
 P = E.rational_points(bound = 15)
 
-points = generate_data(P[0], w, min_value, max_value, step_value, base)
+points = generate_data(P[0], int(w), int(min_value), int(max_value), int(step_value), int(base))
 
-E = E.plot()
+if (print_curve):
+    E.plot().save("curve.pdf")
+
 G = list_plot(points, plotjoined = True)
 F = line([(min_value,100), (max_value,100)], rgbcolor = (0,0.5,0), linestyle="--")
-Graph = plot(F+G)
-(E + Graph).save(output_name)
-exit(EXIT_SUCCESS)
+(F+G).plot().save(output_name)
+sys.exit(EXIT_SUCCESS)

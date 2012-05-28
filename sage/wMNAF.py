@@ -1,6 +1,8 @@
 #!/usr/bin/env python2
 
+# needed for data collecting
 import time
+from sage import *
 
 # helper functions
 def digit_to_char(digit):

@@ -1,20 +1,20 @@
-#secp128r1
-#p = int("FFFFFFFDFFFFFFFFFFFFFFFFFFFFFFFF", 16)
-#F = ZZ.quotient_ring(p*ZZ)
-#E = EllipticCurve([int("FFFFFFFDFFFFFFFFFFFFFFFFFFFFFFFC", 16), int("E87579C11079F43DD824993C2CEE5ED3", 16)])
+import sys
+from wMNAF_data_collect import *
+
+l = len(sys.argv)
+out = "./output.pdf"
+
+if (l == 2):
+    out = sys.argv[1]
 
 E = EllipticCurve([3,5])
 w = 4
 
-E.plot()
+E.plot().save(out)
 
-P = E.rational_points(bound = 15); P
+P = E.rational_points(bound = 15)
 
-min_value = 100
-max_value = 1000
-step = 5
-
-points = generate_data(P[0], w, min_value, max_value, step)
+points = generate_data(P[0], w, 100, 1000, 5)
 
 G = list_plot(points, plotjoined = True)
 F = line([(min_value,100), (max_value,100)], rgbcolor = (0,0.5,0), linestyle="--")

@@ -231,6 +231,7 @@ def generate_data(P, w, min_value = 10, max_value = 1024, step = 11, base = 2, w
         print("{0:>10}\t\t{1:>25}\t\t{2:>25}\t\t{3:>5}".format("n", "wMNAF time", "SAGE time", "Valid"))
 
     graph = []
+    error = False
 
     neg, pos = precompute_values(P, w, base)
 
@@ -245,11 +246,18 @@ def generate_data(P, w, min_value = 10, max_value = 1024, step = 11, base = 2, w
         default = n*P
         sage_time = time.clock() - t0
 
+        error = not (wnaf == default)
+        if error:
+            print("wMNAF produced incorrect results!")
+            print("multiplier was {k}, window size was {w}, base was {base}".format(k = k, w = w, base = base))
+            print("point was {point}".format(point = P))
+            exit(EXIT_FAILURE)
+
         if (sage_time != 0) and (wnaf_time != 0):
             percentage = 100*wnaf_time/sage_time
             graph.append((k, percentage))
 
         if (with_timings):
-            print("{0:>10}\t\t{1:>25}\t\t{2:>25}\t\t{3:>5}".format(k, wnaf_time, sage_time, str(wnaf == default)))
+            print("{0:>10}\t\t{1:>25}\t\t{2:>25}\t\t{3:>5}".format(k, wnaf_time, sage_time, str(not error)))
 
     return graph

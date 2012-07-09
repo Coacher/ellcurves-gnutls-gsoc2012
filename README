@@ -1,1 +1,4 @@
-My GnuTLS GSoC 2012 project.
+`test.c` file contains a working example of wMNAF calculator implemented in C.
+
+It requires GMP to work and should be compiled with `-lgmp` flag.
+This implementation is a port of OpenSSL's one to GMP and mpz_t.

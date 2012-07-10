@@ -127,7 +127,7 @@ int main(void) {
 
     for (i = 0; i <= 128; ++i) {
         mpz_set_si(x, i);
-        wmnaf = wMNAF(x, 2, &wmnaf_len);
+        wmnaf = wMNAF(x, 3, &wmnaf_len);
 
         printf("\"%3i\" has wMNAF repr. = [", i);
         for (j = wmnaf_len - 1; j > 0; --j) {

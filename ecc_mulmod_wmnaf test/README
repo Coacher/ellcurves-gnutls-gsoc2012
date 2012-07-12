@@ -1,0 +1,14 @@
+`test.c` file contains a test utility of ecc_mulmod_wmnaf() function.
+
+It requires GMP to work and should be compiled with `-lgmp` flag.
+
+Several additional steps required to make it build and work:
+1. `git clone https://code.google.com/p/ellcurves-gnutls-gsoc2012/`
+2. build a local copy of GnuTLS using "lib" dir from the cloned repo (see "patch-o-matic.sh")
+2a. clone 3_0_x-2 branch of GnuTLS repo or use submodule included in the ellcurves-gnutls-gsoc2012 repo
+2b. either copy "ellcurves-gnutls-gsoc2012/lib" over "lib" dir in a GnuTLS tree from previous step or run
+    `diff -Nur gnutls/lib lib > wmnaf.patch` in the ellcurves-gnutls-gsoc2012 directory 
+    and then `patch -Np0 -i /path/to/wmnaf.patch` in a GnuTLS tree
+2c. build patched GnuTLS library in a preferred way (`make autoreconf`, `./configure`, `make` is one of them)
+3. build "test.c" using the supplied Makefile (don't forget to adjust the paths)
+4. run "test-wrapper.sh"

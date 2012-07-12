@@ -178,23 +178,30 @@ gnutls_x509_crt_import (gnutls_x509_crt_t cert,
    */
   if (format == GNUTLS_X509_FMT_PEM)
     {
+      uint8_t *out;
+
       /* Try the first header */
       result =
-        _gnutls_fbase64_decode (PEM_X509_CERT2, data->data, data->size, &_data);
+        _gnutls_fbase64_decode (PEM_X509_CERT2, data->data, data->size, &out);
 
       if (result <= 0)
         {
           /* try for the second header */
           result =
             _gnutls_fbase64_decode (PEM_X509_CERT, data->data,
-                                    data->size, &_data);
+                                    data->size, &out);
 
-          if (result < 0)
+          if (result <= 0)
             {
+              if (result == 0)
+                result = GNUTLS_E_INTERNAL_ERROR;
               gnutls_assert ();
               return result;
             }
         }
+
+      _data.data = out;
+      _data.size = result;
 
       need_free = 1;
     }
@@ -3131,7 +3138,7 @@ cleanup:
  *
  * This function will convert the given PEM encoded certificate list
  * to the native gnutls_x509_crt_t format. The output will be stored
- * in @certs which will be initialized.
+ * in @certs.  They will be automatically initialized.
  *
  * If the Certificate is PEM encoded it should have a header of "X509
  * CERTIFICATE", or "CERTIFICATE".

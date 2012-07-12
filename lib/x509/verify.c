@@ -485,7 +485,7 @@ _gnutls_verify_certificate2 (gnutls_x509_crt_t cert,
   if (result == GNUTLS_E_PK_SIG_VERIFY_FAILED)
     {
       gnutls_assert ();
-      out |= GNUTLS_CERT_INVALID | GNUTLS_CERT_SIGNATURE_FAILURE;
+      out |= GNUTLS_CERT_INVALID;
       /* error. ignore it */
       if (output)
         *output |= out;
@@ -714,7 +714,70 @@ _gnutls_x509_verify_algorithm (gnutls_digest_algorithm_t * hash,
                                gnutls_pk_algorithm_t pk,
                                gnutls_pk_params_st * issuer_params)
 {
-  return _gnutls_pk_hash_algorithm(pk, signature, issuer_params, hash);
+  uint8_t digest[MAX_HASH_SIZE];
+  gnutls_datum_t decrypted;
+  unsigned int digest_size;
+  int ret;
+
+  switch (pk)
+    {
+    case GNUTLS_PK_DSA:
+    case GNUTLS_PK_EC:
+
+      if (hash)
+        *hash = _gnutls_dsa_q_to_hash (pk, issuer_params, NULL);
+
+      ret = 0;
+      break;
+    case GNUTLS_PK_RSA:
+      if (signature == NULL)
+        {                       /* return a sensible algorithm */
+          if (hash)
+            *hash = GNUTLS_DIG_SHA256;
+          return 0;
+        }
+
+      ret =
+        _gnutls_pkcs1_rsa_decrypt (&decrypted, signature,
+                                   issuer_params, 1);
+
+
+      if (ret < 0)
+        {
+          gnutls_assert ();
+          goto cleanup;
+        }
+
+      digest_size = sizeof (digest);
+      if ((ret =
+           decode_ber_digest_info (&decrypted, hash, digest,
+                                   &digest_size)) != 0)
+        {
+          gnutls_assert ();
+          _gnutls_free_datum (&decrypted);
+          goto cleanup;
+        }
+
+      _gnutls_free_datum (&decrypted);
+      if (digest_size != _gnutls_hash_get_algo_len (*hash))
+        {
+          gnutls_assert ();
+          ret = GNUTLS_E_ASN1_GENERIC_ERROR;
+          goto cleanup;
+        }
+
+      ret = 0;
+      break;
+
+    default:
+      gnutls_assert ();
+      ret = GNUTLS_E_INTERNAL_ERROR;
+    }
+
+cleanup:
+
+  return ret;
+
 }
 
 /* verifies if the certificate is properly signed.
@@ -1044,7 +1107,7 @@ _gnutls_verify_crl2 (gnutls_x509_crl_t crl,
       gnutls_assert ();
       /* error. ignore it */
       if (output)
-        *output |= GNUTLS_CERT_INVALID | GNUTLS_CERT_SIGNATURE_FAILURE;
+        *output |= GNUTLS_CERT_INVALID;
       result = 0;
     }
   else if (result < 0)

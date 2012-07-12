@@ -23,6 +23,7 @@
 #ifndef __GNUTLS_ABSTRACT_H
 #define __GNUTLS_ABSTRACT_H
 
+#include <stdarg.h>
 #include <gnutls/gnutls.h>
 #include <gnutls/x509.h>
 #include <gnutls/pkcs11.h>
@@ -50,9 +51,6 @@ typedef int (*gnutls_privkey_decrypt_func) (gnutls_privkey_t key,
                                             const gnutls_datum_t * ciphertext,
                                             gnutls_datum_t * plaintext);
 
-typedef void (*gnutls_privkey_deinit_func) (gnutls_privkey_t key,
-                                           void *userdata);
-
 int gnutls_pubkey_init (gnutls_pubkey_t * key);
 void gnutls_pubkey_deinit (gnutls_pubkey_t key);
 int gnutls_pubkey_get_pk_algorithm (gnutls_pubkey_t key, unsigned int *bits);
@@ -68,11 +66,6 @@ int
 gnutls_pubkey_import_privkey (gnutls_pubkey_t key, gnutls_privkey_t pkey,
                               unsigned int usage, unsigned int flags);
 
-int
-gnutls_pubkey_import_tpm_raw (gnutls_pubkey_t pkey,
-			       const gnutls_datum_t * fdata,
-			       gnutls_x509_crt_fmt_t format,
-			       const char *srk_password);
 
 int gnutls_pubkey_get_preferred_hash_algorithm (gnutls_pubkey_t key,
                                                 gnutls_digest_algorithm_t *
@@ -144,6 +137,11 @@ int gnutls_x509_crq_set_pubkey (gnutls_x509_crq_t crq, gnutls_pubkey_t key);
 
 #define GNUTLS_PUBKEY_VERIFY_FLAG_TLS_RSA 1
 int
+gnutls_pubkey_verify_hash (gnutls_pubkey_t key, unsigned int flags,
+                           const gnutls_datum_t * hash,
+                           const gnutls_datum_t * signature);
+
+int
 gnutls_pubkey_verify_hash2 (gnutls_pubkey_t key, 
                             gnutls_sign_algorithm_t algo,
                             unsigned int flags,
@@ -155,6 +153,10 @@ gnutls_pubkey_get_verify_algorithm (gnutls_pubkey_t key,
                                     const gnutls_datum_t * signature,
                                     gnutls_digest_algorithm_t * hash);
 
+int gnutls_pubkey_verify_data (gnutls_pubkey_t pubkey,
+                                   unsigned int flags,
+                                   const gnutls_datum_t * data,
+                                   const gnutls_datum_t * signature);
 int
 gnutls_pubkey_verify_data2 (gnutls_pubkey_t pubkey, 
                            gnutls_sign_algorithm_t algo,
@@ -182,42 +184,12 @@ int gnutls_privkey_import_x509 (gnutls_privkey_t pkey,
 int gnutls_privkey_import_openpgp (gnutls_privkey_t pkey,
                                    gnutls_openpgp_privkey_t key,
                                    unsigned int flags);
-
-int gnutls_privkey_import_openpgp_raw (gnutls_privkey_t pkey,
-                                    const gnutls_datum_t * data,
-                                    gnutls_openpgp_crt_fmt_t format,
-                                    const gnutls_openpgp_keyid_t keyid,
-                                    const char* password);
-
-int gnutls_privkey_import_x509_raw (gnutls_privkey_t pkey,
-                                    const gnutls_datum_t * data,
-                                    gnutls_x509_crt_fmt_t format,
-                                    const char* password);
-
-int
-gnutls_privkey_import_tpm_raw (gnutls_privkey_t pkey,
-			       const gnutls_datum_t * fdata,
-			       gnutls_x509_crt_fmt_t format,
-			       const char *srk_password,
-			       const char *tpm_password);
-
-int gnutls_privkey_import_pkcs11_url (gnutls_privkey_t key, const char *url);
-
 int
 gnutls_privkey_import_ext (gnutls_privkey_t pkey,
                            gnutls_pk_algorithm_t pk,
                            void* userdata,
                            gnutls_privkey_sign_func sign_func,
                            gnutls_privkey_decrypt_func decrypt_func,
-                           unsigned int flags);
-
-int
-gnutls_privkey_import_ext2 (gnutls_privkey_t pkey,
-                           gnutls_pk_algorithm_t pk,
-                           void* userdata,
-                           gnutls_privkey_sign_func sign_func,
-                           gnutls_privkey_decrypt_func decrypt_func,
-                           gnutls_privkey_deinit_func deinit_func,
                            unsigned int flags);
 
 int gnutls_privkey_sign_data (gnutls_privkey_t signer,
@@ -325,17 +297,6 @@ gnutls_certificate_set_key (gnutls_certificate_credentials_t res,
                             gnutls_pcert_st * pcert_list,
                             int pcert_list_size,
                             gnutls_privkey_t key);
-
-#include <gnutls/compat.h>
-
-int gnutls_pubkey_verify_data (gnutls_pubkey_t pubkey,
-                               unsigned int flags,
-                               const gnutls_datum_t * data,
-                               const gnutls_datum_t * signature) _GNUTLS_GCC_ATTR_DEPRECATED;
-
-int gnutls_pubkey_verify_hash (gnutls_pubkey_t key, unsigned int flags,
-                           const gnutls_datum_t * hash,
-                           const gnutls_datum_t * signature) _GNUTLS_GCC_ATTR_DEPRECATED;
 
 #ifdef __cplusplus
 }

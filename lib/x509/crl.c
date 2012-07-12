@@ -118,13 +118,20 @@ gnutls_x509_crl_import (gnutls_x509_crl_t crl,
    */
   if (format == GNUTLS_X509_FMT_PEM)
     {
-      result = _gnutls_fbase64_decode (PEM_CRL, data->data, data->size, &_data);
+      uint8_t *out;
 
-      if (result < 0)
+      result = _gnutls_fbase64_decode (PEM_CRL, data->data, data->size, &out);
+
+      if (result <= 0)
         {
+          if (result == 0)
+            result = GNUTLS_E_INTERNAL_ERROR;
           gnutls_assert ();
           return result;
         }
+
+      _data.data = out;
+      _data.size = result;
 
       need_free = 1;
     }

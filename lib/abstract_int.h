@@ -38,7 +38,7 @@ _gnutls_pubkey_get_mpis (gnutls_pubkey_t key,
 
 int
 pubkey_verify_hashed_data (gnutls_pk_algorithm_t pk,
-                           gnutls_digest_algorithm_t algo,
+                           gnutls_digest_algorithm_t hash_algo,
                            const gnutls_datum_t * hash,
                            const gnutls_datum_t * signature,
                            gnutls_pk_params_st * issuer_params);

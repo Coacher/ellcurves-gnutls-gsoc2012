@@ -50,7 +50,6 @@ struct gnutls_privkey_st
     struct {
       gnutls_privkey_sign_func sign_func;
       gnutls_privkey_decrypt_func decrypt_func;
-      gnutls_privkey_deinit_func deinit_func;
       void* userdata;
     } ext;
   } key;
@@ -306,10 +305,6 @@ gnutls_privkey_deinit (gnutls_privkey_t key)
       case GNUTLS_PRIVKEY_X509:
         gnutls_x509_privkey_deinit (key->key.x509);
         break;
-      case GNUTLS_PRIVKEY_EXT:
-        if (key->key.ext.deinit_func != NULL)
-          key->key.ext.deinit_func(key, key->key.ext.userdata);
-        break;
       default:
         break;
       }
@@ -414,67 +409,10 @@ int ret;
 
   pkey->key.ext.sign_func = sign_func;
   pkey->key.ext.decrypt_func = decrypt_func;
-  pkey->key.ext.deinit_func = NULL;
   pkey->key.ext.userdata = userdata;
   pkey->type = GNUTLS_PRIVKEY_EXT;
   pkey->pk_algorithm = pk;
   pkey->flags = flags;
-
-  return 0;
-}
-
-/**
- * gnutls_privkey_import_ext2:
- * @pkey: The private key
- * @pk: The public key algorithm
- * @userdata: private data to be provided to the callbacks
- * @sign_func: callback for signature operations
- * @decrypt_func: callback for decryption operations
- * @deinit_func: a deinitialization function
- * @flags: Flags for the import
- *
- * This function will associate the given callbacks with the
- * #gnutls_privkey_t structure. At least one of the two callbacks
- * must be non-null. If a deinitialization function is provided
- * then flags is assumed to contain %GNUTLS_PRIVKEY_IMPORT_AUTO_RELEASE.
- *
- * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a
- *   negative error value.
- *
- * Since: 3.1
- **/
-int
-gnutls_privkey_import_ext2 (gnutls_privkey_t pkey,
-                           gnutls_pk_algorithm_t pk,
-                           void* userdata,
-                           gnutls_privkey_sign_func sign_func,
-                           gnutls_privkey_decrypt_func decrypt_func,
-                           gnutls_privkey_deinit_func deinit_func,
-                           unsigned int flags)
-{
-int ret;
-
-  ret = check_if_clean(pkey);
-  if (ret < 0)
-    {
-      gnutls_assert();
-      return ret;
-    }
-  
-  if (sign_func == NULL && decrypt_func == NULL)
-    return gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
-
-  pkey->key.ext.sign_func = sign_func;
-  pkey->key.ext.decrypt_func = decrypt_func;
-  pkey->key.ext.deinit_func = deinit_func;
-  pkey->key.ext.userdata = userdata;
-  pkey->type = GNUTLS_PRIVKEY_EXT;
-  pkey->pk_algorithm = pk;
-  pkey->flags = flags;
-
-  /* Ensure gnutls_privkey_deinit() calls the deinit_func */
-  if (deinit_func)
-    pkey->flags |= GNUTLS_PRIVKEY_IMPORT_AUTO_RELEASE;
 
   return 0;
 }
@@ -624,7 +562,7 @@ uint8_t keyid[GNUTLS_OPENPGP_KEYID_SIZE];
  * together with a hash functions.  Different hash functions may be
  * used for the RSA algorithm, but only the SHA family for the DSA keys.
  *
- * You may use gnutls_pubkey_get_preferred_hash_algorithm() to determine
+ * Use gnutls_pubkey_get_preferred_hash_algorithm() to determine
  * the hash algorithm.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a
@@ -685,7 +623,7 @@ cleanup:
  * together with a hash functions.  Different hash functions may be
  * used for the RSA algorithm, but only SHA-XXX for the DSA keys.
  *
- * You may use gnutls_pubkey_get_preferred_hash_algorithm() to determine
+ * Use gnutls_pubkey_get_preferred_hash_algorithm() to determine
  * the hash algorithm.
  *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a
@@ -763,8 +701,9 @@ _gnutls_privkey_sign_hash (gnutls_privkey_t key,
                                                hash, signature);
 #endif
     case GNUTLS_PRIVKEY_X509:
-      return _gnutls_pk_sign (key->key.x509->pk_algorithm,
-                              signature, hash, &key->key.x509->params);
+      return _gnutls_soft_sign (key->key.x509->pk_algorithm,
+                                &key->key.x509->params,
+                                hash, signature);
     case GNUTLS_PRIVKEY_EXT:
       if (key->key.ext.sign_func == NULL)
         return gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
@@ -796,16 +735,23 @@ gnutls_privkey_decrypt_data (gnutls_privkey_t key,
                              const gnutls_datum_t * ciphertext,
                              gnutls_datum_t * plaintext)
 {
+  if (key->pk_algorithm != GNUTLS_PK_RSA)
+    {
+      gnutls_assert ();
+      return GNUTLS_E_INVALID_REQUEST;
+    }
+
   switch (key->type)
     {
 #ifdef ENABLE_OPENPGP
     case GNUTLS_PRIVKEY_OPENPGP:
       return _gnutls_openpgp_privkey_decrypt_data (key->key.openpgp, flags,
-                                                   ciphertext, plaintext);
+                                                  ciphertext, plaintext);
 #endif
     case GNUTLS_PRIVKEY_X509:
-      return _gnutls_pk_decrypt (key->pk_algorithm, plaintext, ciphertext,
-                                 &key->key.x509->params);
+      return _gnutls_pkcs1_rsa_decrypt (plaintext, ciphertext,
+                                        &key->key.x509->params,
+                                        2);
 #ifdef ENABLE_PKCS11
     case GNUTLS_PRIVKEY_PKCS11:
       return _gnutls_pkcs11_privkey_decrypt_data (key->key.pkcs11,
@@ -821,163 +767,4 @@ gnutls_privkey_decrypt_data (gnutls_privkey_t key,
       gnutls_assert ();
       return GNUTLS_E_INVALID_REQUEST;
     }
-}
-
-/**
- * gnutls_privkey_import_x509_raw:
- * @pkey: The private key
- * @data: The private key data to be imported
- * @format: The format of the private key
- * @password: A password (optional)
- *
- * This function will import the given private key to the abstract
- * #gnutls_privkey_t structure. 
- *
- * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a
- *   negative error value.
- *
- * Since: 3.1.0
- **/
-int gnutls_privkey_import_x509_raw (gnutls_privkey_t pkey,
-                                    const gnutls_datum_t * data,
-                                    gnutls_x509_crt_fmt_t format,
-                                    const char* password)
-{
-  gnutls_x509_privkey_t xpriv;
-  int ret;
-  
-  ret = gnutls_x509_privkey_init(&xpriv);
-  if (ret < 0)
-    return gnutls_assert_val(ret);
-
-  ret = gnutls_x509_privkey_import2(xpriv, data, format, password);
-  if (ret < 0)
-    {
-      gnutls_assert();
-      goto cleanup;
-    }
-
-  ret = gnutls_privkey_import_x509(pkey, xpriv, GNUTLS_PRIVKEY_IMPORT_AUTO_RELEASE);
-  if (ret < 0)
-    {
-      gnutls_assert();
-      goto cleanup;
-    }
-
-  return 0;
-  
-cleanup:
-  gnutls_x509_privkey_deinit(xpriv);
-  
-  return ret;
-}
-
-/**
- * gnutls_privkey_import_openpgp_raw:
- * @pkey: The private key
- * @data: The private key data to be imported
- * @format: The format of the private key
- * @keyid: The key id to use (optional)
- * @password: A password (optional)
- *
- * This function will import the given private key to the abstract
- * #gnutls_privkey_t structure. 
- *
- * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a
- *   negative error value.
- *
- * Since: 3.1.0
- **/
-int gnutls_privkey_import_openpgp_raw (gnutls_privkey_t pkey,
-                                    const gnutls_datum_t * data,
-                                    gnutls_openpgp_crt_fmt_t format,
-                                    const gnutls_openpgp_keyid_t keyid,
-                                    const char* password)
-{
-  gnutls_openpgp_privkey_t xpriv;
-  int ret;
-  
-  ret = gnutls_openpgp_privkey_init(&xpriv);
-  if (ret < 0)
-    return gnutls_assert_val(ret);
-
-  ret = gnutls_openpgp_privkey_import(xpriv, data, format, password, 0);
-  if (ret < 0)
-    {
-      gnutls_assert();
-      goto cleanup;
-    }
-
-  if(keyid)
-    {
-      ret = gnutls_openpgp_privkey_set_preferred_key_id(xpriv, keyid);
-      if (ret < 0)
-        {
-          gnutls_assert();
-          goto cleanup;
-        }
-    }
-
-  ret = gnutls_privkey_import_openpgp(pkey, xpriv, GNUTLS_PRIVKEY_IMPORT_AUTO_RELEASE);
-  if (ret < 0)
-    {
-      gnutls_assert();
-      goto cleanup;
-    }
-    
-  ret = 0;
-  
-cleanup:
-  gnutls_openpgp_privkey_deinit(xpriv);
-  
-  return ret;
-}
-
-/**
- * gnutls_privkey_import_pkcs11_url:
- * @key: A key of type #gnutls_pubkey_t
- * @url: A PKCS 11 url
- * @flags: One of GNUTLS_PKCS11_OBJ_* flags
- *
- * This function will import a PKCS 11 certificate to a #gnutls_pubkey_t
- * structure.
- *
- * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a
- *   negative error value.
- *
- * Since: 3.1.0
- **/
-int
-gnutls_privkey_import_pkcs11_url (gnutls_privkey_t key, const char *url)
-{
-  gnutls_pkcs11_privkey_t pkey;
-  int ret;
-
-  ret = gnutls_pkcs11_privkey_init (&pkey);
-  if (ret < 0)
-    {
-      gnutls_assert ();
-      return ret;
-    }
-
-  ret = gnutls_pkcs11_privkey_import_url (pkey, url, 0);
-  if (ret < 0)
-    {
-      gnutls_assert ();
-      goto cleanup;
-    }
-
-  ret = gnutls_privkey_import_pkcs11 (key, pkey, GNUTLS_PRIVKEY_IMPORT_AUTO_RELEASE);
-  if (ret < 0)
-    {
-      gnutls_assert ();
-      goto cleanup;
-    }
-
-  return 0;
-
-cleanup:
-  gnutls_pkcs11_privkey_deinit (pkey);
-
-  return ret;
 }

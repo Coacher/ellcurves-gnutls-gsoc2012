@@ -765,7 +765,7 @@ parse_handshake_header (gnutls_session_t session, mbuffer_st* bufel,
   dataptr = _mbuffer_get_udata_ptr(bufel);
 
   /* if reading a client hello of SSLv2 */
-  if (unlikely(!IS_DTLS(session) && bufel->htype == GNUTLS_HANDSHAKE_CLIENT_HELLO_V2))
+  if (!IS_DTLS(session) && bufel->htype == GNUTLS_HANDSHAKE_CLIENT_HELLO_V2)
     {
       handshake_header_size = SSL2_HEADERS; /* we've already read one byte */
 
@@ -780,7 +780,7 @@ parse_handshake_header (gnutls_session_t session, mbuffer_st* bufel,
       hsk->start_offset = 0;
       hsk->end_offset = hsk->length;
     }
-  else /* TLS or DTLS handshake headers */
+  else /* TLS handshake headers */
     {
 
       hsk->htype = dataptr[0];

@@ -76,7 +76,6 @@ extern "C"
  * @GNUTLS_CIPHER_AES_256_CBC: AES in CBC mode with 256-bit keys.
  * @GNUTLS_CIPHER_ARCFOUR_40: ARCFOUR stream cipher with 40-bit keys.
  * @GNUTLS_CIPHER_CAMELLIA_128_CBC: Camellia in CBC mode with 128-bit keys.
- * @GNUTLS_CIPHER_CAMELLIA_192_CBC: Camellia in CBC mode with 192-bit keys.
  * @GNUTLS_CIPHER_CAMELLIA_256_CBC: Camellia in CBC mode with 256-bit keys.
  * @GNUTLS_CIPHER_RC2_40_CBC: RC2 in CBC mode with 40-bit keys.
  * @GNUTLS_CIPHER_DES_CBC: DES in CBC mode (56-bit keys).
@@ -110,7 +109,6 @@ extern "C"
     GNUTLS_CIPHER_AES_192_CBC = 92,
     GNUTLS_CIPHER_AES_128_GCM = 93,
     GNUTLS_CIPHER_AES_256_GCM = 94,
-    GNUTLS_CIPHER_CAMELLIA_192_CBC = 95,
 
     /* used only for PGP internals. Ignored in TLS/SSL
      */
@@ -428,7 +426,6 @@ extern "C"
  * gnutls_certificate_status_t:
  * @GNUTLS_CERT_INVALID: The certificate is not signed by one of the
  *   known authorities or the signature is invalid.
- * @GNUTLS_CERT_SIGNATURE_FAILURE: The signature verification failed.
  * @GNUTLS_CERT_REVOKED: Certificate is revoked by its authority.  In X.509 this will be
  *   set only if CRLs are checked.
  * @GNUTLS_CERT_SIGNER_NOT_FOUND: The certificate's issuer is not known. 
@@ -454,8 +451,7 @@ extern "C"
     GNUTLS_CERT_SIGNER_NOT_CA = 128,
     GNUTLS_CERT_INSECURE_ALGORITHM = 256,
     GNUTLS_CERT_NOT_ACTIVATED = 512,
-    GNUTLS_CERT_EXPIRED = 1024,
-    GNUTLS_CERT_SIGNATURE_FAILURE = 2048
+    GNUTLS_CERT_EXPIRED = 1024
   } gnutls_certificate_status_t;
 
 /**
@@ -775,11 +771,10 @@ gnutls_ecc_curve_t gnutls_ecc_curve_get(gnutls_session_t session);
   gnutls_cipher_algorithm_t gnutls_cipher_get (gnutls_session_t session);
   gnutls_kx_algorithm_t gnutls_kx_get (gnutls_session_t session);
   gnutls_mac_algorithm_t gnutls_mac_get (gnutls_session_t session);
-  gnutls_compression_method_t
+    gnutls_compression_method_t
     gnutls_compression_get (gnutls_session_t session);
-  gnutls_certificate_type_t
+    gnutls_certificate_type_t
     gnutls_certificate_type_get (gnutls_session_t session);
-
   int gnutls_sign_algorithm_get_requested (gnutls_session_t session,
                                            size_t indx,
                                            gnutls_sign_algorithm_t * algo);
@@ -797,7 +792,6 @@ gnutls_ecc_curve_t gnutls_ecc_curve_get(gnutls_session_t session);
                                                 type);
   const char *gnutls_pk_get_name (gnutls_pk_algorithm_t algorithm);
   const char *gnutls_sign_get_name (gnutls_sign_algorithm_t algorithm);
-  
   gnutls_sign_algorithm_t gnutls_pk_to_sign (gnutls_pk_algorithm_t pk,
                                              gnutls_digest_algorithm_t d);
 
@@ -1737,8 +1731,6 @@ gnutls_ecc_curve_t gnutls_ecc_curve_get(gnutls_session_t session);
 			   time_t expiration,
 			   unsigned int flags);
 
-  /* Other help functions */
-int gnutls_load_file(const char* filename, gnutls_datum_t * data);
 
   /* Gnutls error codes. The mapping to a TLS alert is also shown in
    * comments.
@@ -1913,11 +1905,6 @@ int gnutls_load_file(const char* filename, gnutls_datum_t * data);
 #define GNUTLS_E_NO_PRIORITIES_WERE_SET -326
 #define GNUTLS_E_X509_UNSUPPORTED_EXTENSION -327
 #define GNUTLS_E_SESSION_EOF -328
-
-#define GNUTLS_E_TPM_ERROR -329
-#define GNUTLS_E_TPM_KEY_PASSWORD_ERROR -330
-#define GNUTLS_E_TPM_SRK_PASSWORD_ERROR -331
-#define GNUTLS_E_TPM_SESSION_ERROR -332
 
 #define GNUTLS_E_UNIMPLEMENTED_FEATURE -1250
 

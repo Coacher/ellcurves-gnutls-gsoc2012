@@ -460,8 +460,6 @@ int gnutls_x509_trust_list_get_issuer(gnutls_x509_trust_list_t list,
  * This function will try to verify the given certificate and return
  * its status.
  *
- * Limitation: Pathlen constraints or key usage flags are not consulted.
- *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a
  *   negative error value.
  *
@@ -592,7 +590,7 @@ gnutls_x509_trust_list_verify_named_crt(gnutls_x509_trust_list_t list,
 
     _gnutls_free_datum(&dn);
 
-    *verify = GNUTLS_CERT_INVALID | GNUTLS_CERT_SIGNER_NOT_FOUND;
+    *verify = GNUTLS_CERT_INVALID;
 
     for (i = 0; i < list->node[hash].named_cert_size; i++) {
         if (check_if_same_cert(cert, list->node[hash].named_certs[i].cert) == 0) {      /* check if name matches */

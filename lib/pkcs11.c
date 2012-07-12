@@ -74,11 +74,11 @@ static struct gnutls_pkcs11_provider_s providers[MAX_PROVIDERS];
 static unsigned int active_providers = 0;
 static unsigned int initialized_registered = 0;
 
-gnutls_pkcs11_pin_callback_t _gnutls_pin_func;
-void *_gnutls_pin_data;
+static gnutls_pkcs11_pin_callback_t pin_func;
+static void *pin_data;
 
-gnutls_pkcs11_token_callback_t _gnutls_token_func;
-void *_gnutls_token_data;
+gnutls_pkcs11_token_callback_t token_func;
+void *token_data;
 
 int
 pkcs11_rv_to_err (ck_rv_t rv)
@@ -651,8 +651,8 @@ void
 gnutls_pkcs11_set_pin_function (gnutls_pkcs11_pin_callback_t fn,
                                 void *userdata)
 {
-  _gnutls_pin_func = fn;
-  _gnutls_pin_data = userdata;
+  pin_func = fn;
+  pin_data = userdata;
 }
 
 /**
@@ -669,8 +669,8 @@ void
 gnutls_pkcs11_set_token_function (gnutls_pkcs11_token_callback_t fn,
                                   void *userdata)
 {
-  _gnutls_token_func = fn;
-  _gnutls_token_data = userdata;
+  token_func = fn;
+  token_data = userdata;
 }
 
 int
@@ -831,18 +831,21 @@ gnutls_pkcs11_obj_export (gnutls_pkcs11_obj_t obj,
 }
 
 int
-pkcs11_find_object (struct pkcs11_session_info* sinfo,
+pkcs11_find_object (struct ck_function_list ** _module,
+                    ck_session_handle_t * _pks,
                     ck_object_handle_t * _obj,
                     struct p11_kit_uri *info, unsigned int flags)
 {
   int ret;
+  struct ck_function_list *module;
+  ck_session_handle_t pks;
   ck_object_handle_t obj;
   struct ck_attribute *attrs;
   unsigned long attr_count;
   unsigned long count;
   ck_rv_t rv;
 
-  ret = pkcs11_open_session (sinfo, info, flags & SESSION_LOGIN);
+  ret = pkcs11_open_session (&module, &pks, info, flags & SESSION_LOGIN);
   if (ret < 0)
     {
       gnutls_assert ();
@@ -850,7 +853,7 @@ pkcs11_find_object (struct pkcs11_session_info* sinfo,
     }
 
   attrs = p11_kit_uri_get_attributes (info, &attr_count);
-  rv = pkcs11_find_objects_init (sinfo->module, sinfo->pks, attrs, attr_count);
+  rv = pkcs11_find_objects_init (module, pks, attrs, attr_count);
   if (rv != CKR_OK)
     {
       gnutls_assert ();
@@ -859,17 +862,19 @@ pkcs11_find_object (struct pkcs11_session_info* sinfo,
       goto fail;
     }
 
-  if (pkcs11_find_objects (sinfo->module, sinfo->pks, &obj, 1, &count) == CKR_OK && count == 1)
+  if (pkcs11_find_objects (module, pks, &obj, 1, &count) == CKR_OK && count == 1)
     {
       *_obj = obj;
-      pkcs11_find_objects_final (sinfo);
+      *_pks = pks;
+      *_module = module;
+      pkcs11_find_objects_final (module, pks);
       return 0;
     }
 
   ret = GNUTLS_E_REQUESTED_DATA_NOT_AVAILABLE;
-  pkcs11_find_objects_final (sinfo);
+  pkcs11_find_objects_final (module, pks);
 fail:
-  pkcs11_close_session (sinfo);
+  pkcs11_close_session (module, pks);
 
   return ret;
 }
@@ -924,8 +929,8 @@ pkcs11_find_slot (struct ck_function_list ** module, ck_slot_id_t * slot,
 }
 
 int
-pkcs11_open_session (struct pkcs11_session_info *sinfo, struct p11_kit_uri *info, 
-                     unsigned int flags)
+pkcs11_open_session (struct ck_function_list ** _module, ck_session_handle_t * _pks,
+                     struct p11_kit_uri *info, unsigned int flags)
 {
   ck_rv_t rv;
   int ret;
@@ -951,23 +956,20 @@ pkcs11_open_session (struct pkcs11_session_info *sinfo, struct p11_kit_uri *info
       return pkcs11_rv_to_err (rv);
     }
 
-  /* ok found */
-  sinfo->pks = pks;
-  sinfo->module = module;
-  sinfo->init = 1;
-  memcpy(&sinfo->tinfo, &tinfo.tinfo, sizeof(sinfo->tinfo));
-
   if (flags & SESSION_LOGIN)
     {
-      ret = pkcs11_login (sinfo, &tinfo, info, (flags & SESSION_SO) ? 1 : 0);
+      ret = pkcs11_login (module, pks, &tinfo, info, (flags & SESSION_SO) ? 1 : 0);
       if (ret < 0)
         {
           gnutls_assert ();
-          pkcs11_close_session (sinfo);
+          pkcs11_close_session (module, pks);
           return ret;
         }
     }
 
+  /* ok found */
+  *_pks = pks;
+  *_module = module;
   return 0;
 }
 
@@ -980,7 +982,6 @@ _pkcs11_traverse_tokens (find_func_t find_func, void *input,
   unsigned int found = 0, x, z;
   int ret;
   ck_session_handle_t pks = 0;
-  struct pkcs11_session_info sinfo;
   struct ck_function_list *module = NULL;
 
   for (x = 0; x < active_providers; x++)
@@ -1014,13 +1015,10 @@ _pkcs11_traverse_tokens (find_func_t find_func, void *input,
             {
               continue;
             }
-          
-          sinfo.module = module;
-          sinfo.pks = pks;
 
           if (flags & SESSION_LOGIN)
             {
-              ret = pkcs11_login (&sinfo, &tinfo, info, (flags & SESSION_SO) ? 1 : 0);
+              ret = pkcs11_login (module, pks, &tinfo, info, (flags & SESSION_SO) ? 1 : 0);
               if (ret < 0)
                 {
                   gnutls_assert ();
@@ -1028,7 +1026,7 @@ _pkcs11_traverse_tokens (find_func_t find_func, void *input,
                 }
             }
 
-          ret = find_func (&sinfo, &tinfo, &providers[x].info, input);
+          ret = find_func (module, pks, &tinfo, &providers[x].info, input);
 
           if (ret == 0)
             {
@@ -1037,7 +1035,7 @@ _pkcs11_traverse_tokens (find_func_t find_func, void *input,
             }
           else
             {
-              pkcs11_close_session (&sinfo);
+              pkcs11_close_session (module, pks);
               pks = 0;
             }
         }
@@ -1049,11 +1047,7 @@ finish:
   if (found == 0)
     {
       if (module)
-        {
-          sinfo.module = module;
-          sinfo.pks = pks;
-          ret = find_func (&sinfo, NULL, NULL, input);
-        }
+        ret = find_func (module, pks, NULL, NULL, input);
       else
         ret = gnutls_assert_val(GNUTLS_E_REQUESTED_DATA_NOT_AVAILABLE);
     }
@@ -1064,7 +1058,7 @@ finish:
 
   if (pks != 0 && module != NULL)
     {
-      pkcs11_close_session (&sinfo);
+      pkcs11_close_session (module, pks);
     }
 
   return ret;
@@ -1407,7 +1401,7 @@ pkcs11_obj_import_pubkey (struct ck_function_list *module,
 }
 
 static int
-find_obj_url (struct pkcs11_session_info *sinfo,
+find_obj_url (struct ck_function_list *module, ck_session_handle_t pks,
               struct token_info *info, struct ck_info *lib_info, void *input)
 {
   struct url_find_data_st *find_data = input;
@@ -1488,7 +1482,7 @@ find_obj_url (struct pkcs11_session_info *sinfo,
       a_vals++;
     }
 
-  rv = pkcs11_find_objects_init (sinfo->module, sinfo->pks, a, a_vals);
+  rv = pkcs11_find_objects_init (module, pks, a, a_vals);
   if (rv != CKR_OK)
     {
       gnutls_assert ();
@@ -1497,7 +1491,7 @@ find_obj_url (struct pkcs11_session_info *sinfo,
       goto cleanup;
     }
 
-  while (pkcs11_find_objects (sinfo->module, sinfo->pks, &obj, 1, &count) == CKR_OK && count == 1)
+  while (pkcs11_find_objects (module, pks, &obj, 1, &count) == CKR_OK && count == 1)
     {
 
       a[0].type = CKA_VALUE;
@@ -1510,7 +1504,7 @@ find_obj_url (struct pkcs11_session_info *sinfo,
       a[2].value = id_tmp;
       a[2].value_len = sizeof(id_tmp);
 
-      if (pkcs11_get_attribute_value (sinfo->module, sinfo->pks, obj, a, 3) == CKR_OK)
+      if (pkcs11_get_attribute_value (module, pks, obj, a, 3) == CKR_OK)
         {
           gnutls_datum_t id = { a[2].value, a[2].value_len };
           gnutls_datum_t data = { a[0].value, a[0].value_len };
@@ -1519,7 +1513,7 @@ find_obj_url (struct pkcs11_session_info *sinfo,
           if (class == CKO_PUBLIC_KEY)
             {
               ret =
-                pkcs11_obj_import_pubkey (sinfo->module, sinfo->pks, obj,
+                pkcs11_obj_import_pubkey (module, pks, obj,
                                           find_data->crt,
                                           &id, &label,
                                           &info->tinfo, lib_info);
@@ -1559,7 +1553,7 @@ find_obj_url (struct pkcs11_session_info *sinfo,
 
 cleanup:
   gnutls_free (cert_data);
-  pkcs11_find_objects_final (sinfo);
+  pkcs11_find_objects_final (module, pks);
 
   return ret;
 }
@@ -1631,7 +1625,8 @@ struct token_num
 };
 
 static int
-find_token_num (struct pkcs11_session_info* sinfo,
+find_token_num (struct ck_function_list *module,
+                ck_session_handle_t pks,
                 struct token_info *tinfo,
                 struct ck_info *lib_info, void *input)
 {
@@ -1953,7 +1948,7 @@ retrieve_pin_for_callback (struct ck_token_info *token_info, int attempts,
   if (attempts > 0)
     flags |= GNUTLS_PKCS11_PIN_WRONG;
 
-  ret = _gnutls_pin_func (_gnutls_pin_data, attempts, (char*)token_str, label,
+  ret = pin_func (pin_data, attempts, (char*)token_str, label,
                   flags, pin_value, GNUTLS_PKCS11_MAX_PIN_LEN);
   free (token_str);
   free (label);
@@ -1987,7 +1982,7 @@ retrieve_pin (struct p11_kit_uri *info, struct ck_token_info *token_info,
     }
 
   /* The global gnutls pin callback */
-  if (_gnutls_pin_func && ret < 0)
+  if (pin_func && ret < 0)
     ret = retrieve_pin_for_callback (token_info, attempts, user_type, pin);
 
   /* Otherwise, PIN entry is necessary for login, so fail if there's
@@ -2003,7 +1998,7 @@ retrieve_pin (struct p11_kit_uri *info, struct ck_token_info *token_info,
 }
 
 int
-pkcs11_login (struct pkcs11_session_info * sinfo,
+pkcs11_login (struct ck_function_list * module, ck_session_handle_t pks,
               const struct token_info *tokinfo, struct p11_kit_uri *info, int so)
 {
   struct ck_session_info session_info;
@@ -2024,7 +2019,7 @@ pkcs11_login (struct pkcs11_session_info * sinfo,
    * required. */
   if (tokinfo->tinfo.flags & CKF_PROTECTED_AUTHENTICATION_PATH)
     {
-      rv = (sinfo->module)->C_Login (sinfo->pks, (so == 0) ? CKU_USER : CKU_SO, NULL, 0);
+      rv = (module)->C_Login (pks, (so == 0) ? CKU_USER : CKU_SO, NULL, 0);
       if (rv == CKR_OK || rv == CKR_USER_ALREADY_LOGGED_IN)
         {
           return 0;
@@ -2046,7 +2041,7 @@ pkcs11_login (struct pkcs11_session_info * sinfo,
       memcpy (&tinfo, &tokinfo->tinfo, sizeof(tinfo));
 
       /* Check whether the session is already logged in, and if so, just skip */
-      rv = (sinfo->module)->C_GetSessionInfo (sinfo->pks, &session_info);
+      rv = (module)->C_GetSessionInfo (pks, &session_info);
       if (rv == CKR_OK && (session_info.state == CKS_RO_USER_FUNCTIONS ||
                            session_info.state == CKS_RW_USER_FUNCTIONS))
         {
@@ -2075,7 +2070,7 @@ pkcs11_login (struct pkcs11_session_info * sinfo,
           goto cleanup;
         }
 
-      rv = (sinfo->module)->C_Login (sinfo->pks, user_type,
+      rv = (module)->C_Login (pks, user_type,
                               (unsigned char *)p11_kit_pin_get_value (pin, NULL),
                               p11_kit_pin_get_length (pin));
 
@@ -2102,7 +2097,7 @@ pkcs11_call_token_func (struct p11_kit_uri *info, const unsigned retry)
 
   tinfo = p11_kit_uri_get_token_info (info);
   label = p11_kit_space_strdup (tinfo->label, sizeof (tinfo->label));
-  ret = (_gnutls_token_func) (_gnutls_token_data, label, retry);
+  ret = (token_func) (token_data, label, retry);
   free (label);
 
   return ret;
@@ -2110,7 +2105,7 @@ pkcs11_call_token_func (struct p11_kit_uri *info, const unsigned retry)
 
 
 static int
-find_privkeys (struct pkcs11_session_info* sinfo,
+find_privkeys (struct ck_function_list *module, ck_session_handle_t pks,
                struct token_info *info, struct pkey_list *list)
 {
   struct ck_attribute a[3];
@@ -2129,7 +2124,7 @@ find_privkeys (struct pkcs11_session_info* sinfo,
   a[0].value = &class;
   a[0].value_len = sizeof class;
 
-  rv = pkcs11_find_objects_init (sinfo->module, sinfo->pks, a, 1);
+  rv = pkcs11_find_objects_init (module, pks, a, 1);
   if (rv != CKR_OK)
     {
       gnutls_assert ();
@@ -2137,12 +2132,12 @@ find_privkeys (struct pkcs11_session_info* sinfo,
     }
 
   list->key_ids_size = 0;
-  while (pkcs11_find_objects (sinfo->module, sinfo->pks, &obj, 1, &count) == CKR_OK && count == 1)
+  while (pkcs11_find_objects (module, pks, &obj, 1, &count) == CKR_OK && count == 1)
     {
       list->key_ids_size++;
     }
 
-  pkcs11_find_objects_final (sinfo);
+  pkcs11_find_objects_final (module, pks);
 
   if (list->key_ids_size == 0)
     {
@@ -2163,7 +2158,7 @@ find_privkeys (struct pkcs11_session_info* sinfo,
   a[0].value = &class;
   a[0].value_len = sizeof class;
 
-  rv = pkcs11_find_objects_init (sinfo->module, sinfo->pks, a, 1);
+  rv = pkcs11_find_objects_init (module, pks, a, 1);
   if (rv != CKR_OK)
     {
       gnutls_assert ();
@@ -2171,7 +2166,7 @@ find_privkeys (struct pkcs11_session_info* sinfo,
     }
 
   current = 0;
-  while (pkcs11_find_objects (sinfo->module, sinfo->pks, &obj, 1, &count) == CKR_OK && count == 1)
+  while (pkcs11_find_objects (module, pks, &obj, 1, &count) == CKR_OK && count == 1)
     {
 
       a[0].type = CKA_ID;
@@ -2180,7 +2175,7 @@ find_privkeys (struct pkcs11_session_info* sinfo,
 
       _gnutls_buffer_init (&list->key_ids[current]);
 
-      if (pkcs11_get_attribute_value (sinfo->module, sinfo->pks, obj, a, 1) == CKR_OK)
+      if (pkcs11_get_attribute_value (module, pks, obj, a, 1) == CKR_OK)
         {
           _gnutls_buffer_append_data (&list->key_ids[current],
                                       a[0].value, a[0].value_len);
@@ -2191,7 +2186,7 @@ find_privkeys (struct pkcs11_session_info* sinfo,
         break;
     }
 
-  pkcs11_find_objects_final (sinfo);
+  pkcs11_find_objects_final (module, pks);
 
   list->key_ids_size = current - 1;
 
@@ -2202,7 +2197,7 @@ find_privkeys (struct pkcs11_session_info* sinfo,
 
 
 static int
-find_objs (struct pkcs11_session_info* sinfo,
+find_objs (struct ck_function_list * module, ck_session_handle_t pks,
            struct token_info *info, struct ck_info *lib_info, void *input)
 {
   struct crt_find_data_st *find_data = input;
@@ -2246,7 +2241,7 @@ find_objs (struct pkcs11_session_info* sinfo,
 
   if (find_data->flags == GNUTLS_PKCS11_OBJ_ATTR_CRT_WITH_PRIVKEY)
     {
-      ret = find_privkeys (sinfo, info, &plist);
+      ret = find_privkeys (module, pks, info, &plist);
       if (ret < 0)
         {
           gnutls_assert ();
@@ -2355,7 +2350,7 @@ find_objs (struct pkcs11_session_info* sinfo,
       tot_values++;
     }
 
-  rv = pkcs11_find_objects_init (sinfo->module, sinfo->pks, a, tot_values);
+  rv = pkcs11_find_objects_init (module, pks, a, tot_values);
   if (rv != CKR_OK)
     {
       gnutls_assert ();
@@ -2363,7 +2358,7 @@ find_objs (struct pkcs11_session_info* sinfo,
       return pkcs11_rv_to_err (rv);
     }
 
-  while (pkcs11_find_objects (sinfo->module, sinfo->pks, &obj, 1, &count) == CKR_OK && count == 1)
+  while (pkcs11_find_objects (module, pks, &obj, 1, &count) == CKR_OK && count == 1)
     {
       gnutls_datum_t label, id, value;
 
@@ -2371,7 +2366,7 @@ find_objs (struct pkcs11_session_info* sinfo,
       a[0].value = label_tmp;
       a[0].value_len = sizeof label_tmp;
 
-      if (pkcs11_get_attribute_value (sinfo->module, sinfo->pks, obj, a, 1) == CKR_OK)
+      if (pkcs11_get_attribute_value (module, pks, obj, a, 1) == CKR_OK)
         {
           label.data = a[0].value;
           label.size = a[0].value_len;
@@ -2386,7 +2381,7 @@ find_objs (struct pkcs11_session_info* sinfo,
       a[0].value = certid_tmp;
       a[0].value_len = sizeof certid_tmp;
 
-      if (pkcs11_get_attribute_value (sinfo->module, sinfo->pks, obj, a, 1) == CKR_OK)
+      if (pkcs11_get_attribute_value (module, pks, obj, a, 1) == CKR_OK)
         {
           id.data = a[0].value;
           id.size = a[0].value_len;
@@ -2400,7 +2395,7 @@ find_objs (struct pkcs11_session_info* sinfo,
       a[0].type = CKA_VALUE;
       a[0].value = cert_data;
       a[0].value_len = MAX_CERT_SIZE;
-      if (pkcs11_get_attribute_value (sinfo->module, sinfo->pks, obj, a, 1) == CKR_OK)
+      if (pkcs11_get_attribute_value (module, pks, obj, a, 1) == CKR_OK)
         {
           value.data = a[0].value;
           value.size = a[0].value_len;
@@ -2417,7 +2412,7 @@ find_objs (struct pkcs11_session_info* sinfo,
           a[0].value = &class;
           a[0].value_len = sizeof class;
 
-          pkcs11_get_attribute_value (sinfo->module, sinfo->pks, obj, a, 1);
+          pkcs11_get_attribute_value (module, pks, obj, a, 1);
         }
 
       if (find_data->flags == GNUTLS_PKCS11_OBJ_ATTR_CRT_WITH_PRIVKEY)
@@ -2448,7 +2443,7 @@ find_objs (struct pkcs11_session_info* sinfo,
           if (class == CKO_PUBLIC_KEY)
             {
               ret =
-                pkcs11_obj_import_pubkey (sinfo->module, sinfo->pks, obj,
+                pkcs11_obj_import_pubkey (module, pks, obj,
                                           find_data->p_list
                                           [find_data->current],
                                           &id, &label,
@@ -2475,13 +2470,13 @@ find_objs (struct pkcs11_session_info* sinfo,
     }
 
   gnutls_free (cert_data);
-  pkcs11_find_objects_final (sinfo);
+  pkcs11_find_objects_final (module, pks);
 
   return GNUTLS_E_REQUESTED_DATA_NOT_AVAILABLE; /* continue until all tokens have been checked */
 
 fail:
   gnutls_free (cert_data);
-  pkcs11_find_objects_final (sinfo);
+  pkcs11_find_objects_final (module, pks);
   if (plist.key_ids != NULL)
     {
       for (i = 0; i < plist.key_ids_size; i++)
@@ -2557,63 +2552,6 @@ gnutls_pkcs11_obj_list_import_url (gnutls_pkcs11_obj_t * p_list,
     }
 
   return 0;
-}
-
-/**
- * gnutls_pkcs11_obj_list_import_url2:
- * @p_list: An uninitialized object list (may be NULL)
- * @n_list: It will contain the size of the list.
- * @url: A PKCS 11 url identifying a set of objects
- * @attrs: Attributes of type #gnutls_pkcs11_obj_attr_t that can be used to limit output
- * @flags: One of GNUTLS_PKCS11_OBJ_* flags
- *
- * This function will initialize and set values to an object list
- * by using all objects identified by the PKCS 11 URL. The output
- * is stored in @p_list, which will be initialized.
- *
- * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a
- *   negative error value.
- *
- * Since: 3.1.0
- **/
-int
-gnutls_pkcs11_obj_list_import_url2 (gnutls_pkcs11_obj_t ** p_list,
-                                   unsigned int *n_list,
-                                   const char *url,
-                                   gnutls_pkcs11_obj_attr_t attrs,
-                                   unsigned int flags)
-{
-unsigned int init = 1024;
-int ret;
-
-  *p_list = gnutls_malloc(sizeof(gnutls_pkcs11_obj_t)*init);
-  if (*p_list == NULL)
-    {
-      gnutls_assert();
-      return GNUTLS_E_MEMORY_ERROR;
-    }
-
-  ret = gnutls_pkcs11_obj_list_import_url( *p_list, &init, url, attrs, flags);
-  if (ret == GNUTLS_E_SHORT_MEMORY_BUFFER)
-    {
-      *p_list = gnutls_realloc_fast(*p_list, sizeof(gnutls_pkcs11_obj_t)*init);
-      if (*p_list == NULL)
-        return gnutls_assert_val(GNUTLS_E_MEMORY_ERROR);
-      
-      ret = gnutls_pkcs11_obj_list_import_url( *p_list, &init, url, attrs, flags);
-    }
-
-  if (ret < 0)
-    {
-      gnutls_assert();
-      gnutls_free(*p_list);
-      *p_list = NULL;
-      return ret;
-    }
-
-  *n_list = init;
-  return 0;
-
 }
 
 /**
@@ -2741,7 +2679,7 @@ cleanup:
 }
 
 static int
-find_flags (struct pkcs11_session_info* sinfo,
+find_flags (struct ck_function_list * module, ck_session_handle_t pks,
             struct token_info *info, struct ck_info *lib_info, void *input)
 {
   struct flags_find_data_st *find_data = input;
@@ -2959,16 +2897,17 @@ pkcs11_find_objects (struct ck_function_list *module,
 }
 
 ck_rv_t
-pkcs11_find_objects_final (struct pkcs11_session_info* sinfo)
+pkcs11_find_objects_final (struct ck_function_list *module,
+                           ck_session_handle_t sess)
 {
-	return (sinfo->module)->C_FindObjectsFinal (sinfo->pks);
+	return (module)->C_FindObjectsFinal (sess);
 }
 
 ck_rv_t
-pkcs11_close_session (struct pkcs11_session_info * sinfo)
+pkcs11_close_session (struct ck_function_list *module,
+                      ck_session_handle_t sess)
 {
-        sinfo->init = 0;
-	return (sinfo->module)->C_CloseSession (sinfo->pks);
+	return (module)->C_CloseSession (sess);
 }
 
 ck_rv_t

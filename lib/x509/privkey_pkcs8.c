@@ -811,18 +811,41 @@ error:
   return result;
 }
 
-static int decrypt_pkcs8_key(const gnutls_datum_t * raw_key,
-                             ASN1_TYPE pkcs8_asn, const char *password, 
-                             gnutls_x509_privkey_t pkey)
+
+/* Converts a PKCS #8 key to
+ * an internal structure (gnutls_private_key)
+ * (normally a PKCS #1 encoded RSA key)
+ */
+static int
+decode_pkcs8_key (const gnutls_datum_t * raw_key,
+                  const char *password, gnutls_x509_privkey_t pkey)
 {
   int result, len;
   char enc_oid[64];
   gnutls_datum_t tmp;
-  ASN1_TYPE pbes2_asn = ASN1_TYPE_EMPTY;
+  ASN1_TYPE pbes2_asn = ASN1_TYPE_EMPTY, pkcs8_asn = ASN1_TYPE_EMPTY;
   int params_start, params_end, params_len;
   struct pbkdf2_params kdf_params;
   struct pbe_enc_params enc_params;
   schema_id schema;
+
+  if ((result =
+       asn1_create_element (_gnutls_get_pkix (),
+                            "PKIX1.pkcs-8-EncryptedPrivateKeyInfo",
+                            &pkcs8_asn)) != ASN1_SUCCESS)
+    {
+      gnutls_assert ();
+      result = _gnutls_asn2err (result);
+      goto error;
+    }
+
+  result = asn1_der_decoding (&pkcs8_asn, raw_key->data, raw_key->size, NULL);
+  if (result != ASN1_SUCCESS)
+    {
+      gnutls_assert ();
+      result = _gnutls_asn2err (result);
+      goto error;
+    }
 
   /* Check the encryption schema OID
    */
@@ -882,6 +905,8 @@ static int decrypt_pkcs8_key(const gnutls_datum_t * raw_key,
       goto error;
     }
 
+  asn1_delete_structure (&pkcs8_asn);
+
   result = decode_private_key_info (&tmp, pkey);
   _gnutls_free_datum (&tmp);
 
@@ -914,48 +939,8 @@ static int decrypt_pkcs8_key(const gnutls_datum_t * raw_key,
 
 error:
   asn1_delete_structure (&pbes2_asn);
-  return result;
-}
-
-/* Converts a PKCS #8 key to
- * an internal structure (gnutls_private_key)
- * (normally a PKCS #1 encoded RSA key)
- */
-static int
-decode_pkcs8_key (const gnutls_datum_t * raw_key,
-                  const char *password, gnutls_x509_privkey_t pkey, 
-                  unsigned int decrypt)
-{
-  int result;
-  ASN1_TYPE pkcs8_asn = ASN1_TYPE_EMPTY;
-
-  if ((result =
-       asn1_create_element (_gnutls_get_pkix (),
-                            "PKIX1.pkcs-8-EncryptedPrivateKeyInfo",
-                            &pkcs8_asn)) != ASN1_SUCCESS)
-    {
-      gnutls_assert ();
-      result = _gnutls_asn2err (result);
-      goto error;
-    }
-
-  result = asn1_der_decoding (&pkcs8_asn, raw_key->data, raw_key->size, NULL);
-  if (result != ASN1_SUCCESS)
-    {
-      gnutls_assert ();
-      result = _gnutls_asn2err (result);
-      goto error;
-    }
-
-  if (decrypt)
-    result = decrypt_pkcs8_key(raw_key, pkcs8_asn, password, pkey);
-  else
-    result = 0;
-
-error:
   asn1_delete_structure (&pkcs8_asn);
   return result;
-
 }
 
 /* Decodes an RSA privateKey from a PKCS8 structure.
@@ -1185,9 +1170,6 @@ error:
  * specify the flags if the key is DER encoded, since in that case
  * the encryption status cannot be auto-detected.
  *
- * If the %GNUTLS_PKCS_PLAIN flag is specified and the supplied data
- * are encrypted then %GNUTLS_E_DECRYPTION_FAILED is returned.
- *
  * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a
  *   negative error value.
  **/
@@ -1215,20 +1197,24 @@ gnutls_x509_privkey_import_pkcs8 (gnutls_x509_privkey_t key,
    */
   if (format == GNUTLS_X509_FMT_PEM)
     {
+      uint8_t *out;
+
       /* Try the first header 
        */
       result =
         _gnutls_fbase64_decode (PEM_UNENCRYPTED_PKCS8,
-                                data->data, data->size, &_data);
+                                data->data, data->size, &out);
 
       if (result < 0)
         {                       /* Try the encrypted header 
                                  */
           result =
-            _gnutls_fbase64_decode (PEM_PKCS8, data->data, data->size, &_data);
+            _gnutls_fbase64_decode (PEM_PKCS8, data->data, data->size, &out);
 
-          if (result < 0)
+          if (result <= 0)
             {
+              if (result == 0)
+                result = GNUTLS_E_INTERNAL_ERROR;
               gnutls_assert ();
               return result;
             }
@@ -1236,21 +1222,19 @@ gnutls_x509_privkey_import_pkcs8 (gnutls_x509_privkey_t key,
       else if (flags == 0)
         flags |= GNUTLS_PKCS_PLAIN;
 
+      _data.data = out;
+      _data.size = result;
+
       need_free = 1;
     }
 
   if (password == NULL || (flags & GNUTLS_PKCS_PLAIN))
     {
       result = decode_private_key_info (&_data, key);
-      if (result < 0)
-        { /* check if it is encrypted */
-          if (decode_pkcs8_key(&_data, "", key, 0) == 0)
-            result = GNUTLS_E_DECRYPTION_FAILED;
-        }
     }
   else
     {                           /* encrypted. */
-      result = decode_pkcs8_key (&_data, password, key, 1);
+      result = decode_pkcs8_key (&_data, password, key);
     }
 
   if (result < 0)

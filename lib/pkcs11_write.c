@@ -50,6 +50,8 @@ gnutls_pkcs11_copy_x509_crt (const char *token_url,
                              unsigned int flags)
 {
   int ret;
+  struct ck_function_list *module;
+  ck_session_handle_t pks;
   struct p11_kit_uri *info = NULL;
   ck_rv_t rv;
   size_t der_size, id_size;
@@ -61,9 +63,6 @@ gnutls_pkcs11_copy_x509_crt (const char *token_url,
   ck_object_handle_t obj;
   int a_val;
   gnutls_datum_t subject = { NULL, 0 };
-  struct pkcs11_session_info sinfo;
-  
-  memset(&sinfo, 0, sizeof(sinfo));
 
   ret = pkcs11_url_to_info (token_url, &info);
   if (ret < 0)
@@ -73,7 +72,7 @@ gnutls_pkcs11_copy_x509_crt (const char *token_url,
     }
 
   ret =
-    pkcs11_open_session (&sinfo, info,
+    pkcs11_open_session (&module, &pks, info,
                          SESSION_WRITE | pkcs11_obj_flags_to_int (flags));
   p11_kit_uri_free (info);
 
@@ -183,7 +182,7 @@ gnutls_pkcs11_copy_x509_crt (const char *token_url,
         }
     }
 
-  rv = pkcs11_create_object (sinfo.module, sinfo.pks, a, a_val, &obj);
+  rv = pkcs11_create_object (module, pks, a, a_val, &obj);
   if (rv != CKR_OK)
     {
       gnutls_assert ();
@@ -199,7 +198,7 @@ gnutls_pkcs11_copy_x509_crt (const char *token_url,
 
 cleanup:
   gnutls_free (der);
-  pkcs11_close_session (&sinfo);
+  pkcs11_close_session (module, pks);
   _gnutls_free_datum(&subject);
   return ret;
 
@@ -229,6 +228,8 @@ gnutls_pkcs11_copy_x509_privkey (const char *token_url,
                                  unsigned int key_usage, unsigned int flags)
 {
   int ret;
+  struct ck_function_list *module;
+  ck_session_handle_t pks = 0;
   struct p11_kit_uri *info = NULL;
   ck_rv_t rv;
   size_t id_size;
@@ -241,9 +242,6 @@ gnutls_pkcs11_copy_x509_privkey (const char *token_url,
   gnutls_pk_algorithm_t pk;
   gnutls_datum_t p, q, g, y, x;
   gnutls_datum_t m, e, d, u, exp1, exp2;
-  struct pkcs11_session_info sinfo;
-  
-  memset(&sinfo, 0, sizeof(sinfo));
 
   memset(&p, 0, sizeof(p));
   memset(&q, 0, sizeof(q));
@@ -274,7 +272,7 @@ gnutls_pkcs11_copy_x509_privkey (const char *token_url,
     }
 
   ret =
-    pkcs11_open_session (&sinfo, info,
+    pkcs11_open_session (&module, &pks, info,
                          SESSION_WRITE | pkcs11_obj_flags_to_int (flags));
   p11_kit_uri_free (info);
 
@@ -476,7 +474,7 @@ gnutls_pkcs11_copy_x509_privkey (const char *token_url,
       goto cleanup;
     }
 
-  rv = pkcs11_create_object (sinfo.module, sinfo.pks, a, a_val, &obj);
+  rv = pkcs11_create_object (module, pks, a, a_val, &obj);
   if (rv != CKR_OK)
     {
       gnutls_assert ();
@@ -523,8 +521,8 @@ cleanup:
       break;
     }
 
-  if (sinfo.pks != 0)
-    pkcs11_close_session (&sinfo);
+  if (pks != 0)
+    pkcs11_close_session (module, pks);
 
   return ret;
 
@@ -537,7 +535,8 @@ struct delete_data_st
 };
 
 static int
-delete_obj_url (struct pkcs11_session_info * sinfo,
+delete_obj_url (struct ck_function_list *module,
+                ck_session_handle_t pks,
                 struct token_info *info,
                 struct ck_info *lib_info, void *input)
 {
@@ -550,6 +549,7 @@ delete_obj_url (struct pkcs11_session_info * sinfo,
   ck_object_handle_t obj;
   unsigned long count, a_vals;
   int found = 0, ret;
+
 
   if (info == NULL)
     {                           /* we don't support multiple calls */
@@ -606,7 +606,7 @@ delete_obj_url (struct pkcs11_session_info * sinfo,
       a_vals++;
     }
 
-  rv = pkcs11_find_objects_init (sinfo->module, sinfo->pks, a, a_vals);
+  rv = pkcs11_find_objects_init (module, pks, a, a_vals);
   if (rv != CKR_OK)
     {
       gnutls_assert ();
@@ -615,9 +615,9 @@ delete_obj_url (struct pkcs11_session_info * sinfo,
       goto cleanup;
     }
 
-  while (pkcs11_find_objects (sinfo->module, sinfo->pks, &obj, 1, &count) == CKR_OK && count == 1)
+  while (pkcs11_find_objects (module, pks, &obj, 1, &count) == CKR_OK && count == 1)
     {
-      rv = pkcs11_destroy_object (sinfo->module, sinfo->pks, obj);
+      rv = pkcs11_destroy_object (module, pks, obj);
       if (rv != CKR_OK)
         {
           _gnutls_debug_log
@@ -642,7 +642,7 @@ delete_obj_url (struct pkcs11_session_info * sinfo,
     }
 
 cleanup:
-  pkcs11_find_objects_final (sinfo);
+  pkcs11_find_objects_final (module, pks);
 
   return ret;
 }
@@ -770,12 +770,11 @@ gnutls_pkcs11_token_set_pin (const char *token_url,
                              const char *newpin, unsigned int flags)
 {
   int ret;
+  struct ck_function_list *module;
+  ck_session_handle_t pks;
   struct p11_kit_uri *info = NULL;
   ck_rv_t rv;
   unsigned int ses_flags;
-  struct pkcs11_session_info sinfo;
-  
-  memset(&sinfo, 0, sizeof(sinfo));
 
   ret = pkcs11_url_to_info (token_url, &info);
   if (ret < 0)
@@ -790,7 +789,7 @@ gnutls_pkcs11_token_set_pin (const char *token_url,
   else
     ses_flags = SESSION_WRITE | SESSION_LOGIN;
 
-  ret = pkcs11_open_session (&sinfo, info, ses_flags);
+  ret = pkcs11_open_session (&module, &pks, info, ses_flags);
   p11_kit_uri_free (info);
 
   if (ret < 0)
@@ -801,7 +800,7 @@ gnutls_pkcs11_token_set_pin (const char *token_url,
 
   if (oldpin == NULL)
     {
-      rv = pkcs11_init_pin (sinfo.module, sinfo.pks, (uint8_t *) newpin, strlen (newpin));
+      rv = pkcs11_init_pin (module, pks, (uint8_t *) newpin, strlen (newpin));
       if (rv != CKR_OK)
         {
           gnutls_assert ();
@@ -812,7 +811,7 @@ gnutls_pkcs11_token_set_pin (const char *token_url,
     }
   else
     {
-      rv = pkcs11_set_pin (sinfo.module, sinfo.pks,
+      rv = pkcs11_set_pin (module, pks,
                            oldpin, strlen (oldpin),
                            newpin, strlen (newpin));
       if (rv != CKR_OK)
@@ -827,7 +826,7 @@ gnutls_pkcs11_token_set_pin (const char *token_url,
   ret = 0;
 
 finish:
-  pkcs11_close_session (&sinfo);
+  pkcs11_close_session (module, pks);
   return ret;
 
 }

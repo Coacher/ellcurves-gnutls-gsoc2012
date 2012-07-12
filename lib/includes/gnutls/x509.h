@@ -718,15 +718,6 @@ extern "C"
                                         gnutls_x509_crt_fmt_t format,
                                         const char *password,
                                         unsigned int flags);
-  int gnutls_x509_privkey_import_openssl (gnutls_x509_privkey_t key,
-                                          const gnutls_datum_t *data, 
-                                          const char* password);
-
-  int gnutls_x509_privkey_import2 (gnutls_x509_privkey_t key,
-                                   const gnutls_datum_t * data,
-                                   gnutls_x509_crt_fmt_t format,
-                                   const char* password);
-
   int gnutls_x509_privkey_import_rsa_raw (gnutls_x509_privkey_t key,
                                           const gnutls_datum_t * m,
                                           const gnutls_datum_t * e,
@@ -983,26 +974,7 @@ extern "C"
     unsigned int *verify,
     gnutls_verify_output_function func);
 
-  /* trust list convenience functions */
-int
-gnutls_x509_trust_list_add_trust_mem(gnutls_x509_trust_list_t list,
-                                     const gnutls_datum_t * cas, 
-                                     const gnutls_datum_t * crls,
-                                     gnutls_x509_crt_fmt_t type,
-                                     unsigned int tl_flags,
-                                     unsigned int tl_vflags);
 
-int
-gnutls_x509_trust_list_add_trust_file(gnutls_x509_trust_list_t list,
-                                      const char* ca_file, 
-                                      const char* crl_file,
-                                      gnutls_x509_crt_fmt_t type,
-                                      unsigned int tl_flags,
-                                      unsigned int tl_vflags);
-
-int
-gnutls_x509_trust_list_add_system_trust(gnutls_x509_trust_list_t list,
-                                        unsigned int tl_flags, unsigned int tl_vflags);
 #ifdef __cplusplus
 }
 #endif

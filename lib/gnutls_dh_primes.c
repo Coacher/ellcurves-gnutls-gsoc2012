@@ -229,10 +229,11 @@ gnutls_dh_params_import_pkcs3 (gnutls_dh_params_t params,
 
   if (format == GNUTLS_X509_FMT_PEM)
     {
+      uint8_t *out;
 
       result = _gnutls_fbase64_decode ("DH PARAMETERS",
                                        pkcs3_params->data,
-                                       pkcs3_params->size, &_params);
+                                       pkcs3_params->size, &out);
 
       if (result <= 0)
         {
@@ -242,7 +243,11 @@ gnutls_dh_params_import_pkcs3 (gnutls_dh_params_t params,
           return result;
         }
 
+      _params.data = out;
+      _params.size = result;
+
       need_free = 1;
+
     }
   else
     {
@@ -437,7 +442,7 @@ gnutls_dh_params_export_pkcs3 (gnutls_dh_params_t params,
   else
     {                           /* PEM */
       uint8_t *tmp;
-      gnutls_datum_t out;
+      uint8_t *out;
       int len;
 
       len = 0;
@@ -472,20 +477,27 @@ gnutls_dh_params_export_pkcs3 (gnutls_dh_params_t params,
           return result;
         }
 
-      if ((unsigned) out.size > *params_data_size)
+      if (result == 0)
+        {                       /* oooops */
+          gnutls_assert ();
+          gnutls_free (out);
+          return GNUTLS_E_INTERNAL_ERROR;
+        }
+
+      if ((unsigned) result > *params_data_size)
         {
           gnutls_assert ();
-          gnutls_free (out.data);
-          *params_data_size = out.size + 1;
+          gnutls_free (out);
+          *params_data_size = result;
           return GNUTLS_E_SHORT_MEMORY_BUFFER;
         }
 
-      *params_data_size = out.size;
+      *params_data_size = result - 1;
 
       if (params_data)
-        memcpy (params_data, out.data, out.size);
+        memcpy (params_data, out, result);
 
-      gnutls_free (out.data);
+      gnutls_free (out);
 
     }
 

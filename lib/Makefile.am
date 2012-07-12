@@ -76,10 +76,6 @@ COBJECTS = gnutls_record.c gnutls_compress.c debug.c gnutls_cipher.c	\
 	gnutls_pubkey.c locks.c hash.c gnutls_dtls.c system_override.c	\
 	crypto-backend.c verify-tofu.c
 
-if ENABLE_TROUSERS
-COBJECTS += tpm.c
-endif
-
 if ENABLE_PKCS11
 COBJECTS += pkcs11.c pkcs11_privkey.c pkcs11_write.c pkcs11_secret.c
 endif
@@ -115,16 +111,12 @@ libgnutls_la_SOURCES = $(HFILES) $(COBJECTS) $(SRP_COBJECTS)	\
 libgnutls_la_LDFLAGS = -no-undefined \
 	-version-info $(LT_CURRENT):$(LT_REVISION):$(LT_AGE)
 
-if WINDOWS
-libgnutls_la_LDFLAGS += -lcrypt32
-endif
-
 libgnutls_la_LIBADD = ../gl/libgnu.la x509/libgnutls_x509.la \
 	accelerated/libaccelerated.la ext/libgnutls_ext.la \
 	auth/libgnutls_auth.la algorithms/libgnutls_alg.la \
 	extras/libgnutls_extras.la \
 	$(LTLIBZ)  $(LTLIBINTL) $(LIBSOCKET) $(LTLIBDL) \
-	$(LTLIBPTHREAD) $(P11_KIT_LIBS) $(LIB_SELECT) $(TSS_LIBS)
+	$(LTLIBPTHREAD) $(P11_KIT_LIBS) $(LIB_SELECT)
 
 if ENABLE_OPENPGP
 libgnutls_la_LIBADD += openpgp/libgnutls_openpgp.la
@@ -146,6 +138,10 @@ endif
 if ENABLE_NETTLE
 libgnutls_la_LDFLAGS += $(LTLIBNETTLE)
 libgnutls_la_LIBADD += nettle/libcrypto.la
+endif
+
+if WINDOWS
+libgnutls_la_LDFLAGS += -lcrypt32
 endif
 
 if HAVE_LD_OUTPUT_DEF
@@ -174,6 +170,9 @@ libgnutlsxx_la_LDFLAGS = -no-undefined \
 
 libgnutlsxx_la_LIBADD = libgnutls.la
 
+if HAVE_LD_VERSION_SCRIPT
+libgnutlsxx_la_LDFLAGS += -Wl,--version-script=$(srcdir)/libgnutlsxx.map
+endif
 endif
 
 pkix_asn1_tab.c: pkix.asn

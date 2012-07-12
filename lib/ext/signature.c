@@ -27,7 +27,6 @@
 #include "gnutls_int.h"
 #include "gnutls_errors.h"
 #include "gnutls_num.h"
-#include <gnutls/gnutls.h>
 #include <ext/signature.h>
 #include <gnutls_state.h>
 #include <gnutls_num.h>

@@ -1281,7 +1281,7 @@ gnutls_openpgp_privkey_sign_hash (gnutls_openpgp_privkey_t key,
 
 
   result =
-    _gnutls_pk_sign (pk_algorithm, signature, hash, &params);
+    _gnutls_soft_sign (pk_algorithm, &params, hash, signature);
 
   gnutls_pk_params_release(&params);
 
@@ -1351,12 +1351,22 @@ _gnutls_openpgp_privkey_decrypt_data (gnutls_openpgp_privkey_t key,
       return result;
     }
 
-  result = _gnutls_pk_decrypt (pk_algorithm, plaintext, ciphertext, &params);
+  if (pk_algorithm != GNUTLS_PK_RSA)
+    {
+      gnutls_assert ();
+      return GNUTLS_E_INVALID_REQUEST;
+    }
+
+  result =
+    _gnutls_pkcs1_rsa_decrypt (plaintext, ciphertext, &params, 2);
 
   gnutls_pk_params_release(&params);
 
   if (result < 0)
-    return gnutls_assert_val(result);
+    {
+      gnutls_assert ();
+      return result;
+    }
 
   return 0;
 }

@@ -134,12 +134,12 @@ static gnutls_sign_algorithm_t supported_sign[MAX_ALGOS] = {0};
 
 /**
  * gnutls_sign_get_id:
- * @name: is a sign algorithm name
+ * @name: is a MAC algorithm name
  *
  * The names are compared in a case insensitive way.
  *
  * Returns: return a #gnutls_sign_algorithm_t value corresponding to
- *   the specified algorithm, or %GNUTLS_SIGN_UNKNOWN on error.
+ *   the specified cipher, or %GNUTLS_SIGN_UNKNOWN on error.
  **/
 gnutls_sign_algorithm_t
 gnutls_sign_get_id (const char *name)

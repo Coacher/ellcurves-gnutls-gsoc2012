@@ -34,7 +34,6 @@
 #include <gnutls_state.h>
 #include <gnutls_datum.h>
 #include <extras/randomart.h>
-#include <read-file.h>
 
 /**
  * gnutls_random_art:
@@ -94,7 +93,7 @@ int gnutls_random_art (gnutls_random_art_t type,
 void
 gnutls_dh_set_prime_bits (gnutls_session_t session, unsigned int bits)
 {
-  if (bits <= 512) _gnutls_audit_log(session, "Note that the security level of the Diffie-Hellman key exchange has been lowered to %u bits and this may allow decryption of the session data\n", bits);
+  if (bits < 512) _gnutls_audit_log(session, "Note that the security level of the Diffie-Hellman key exchange has been lowered to %u bits and this may allow decryption of the session data\n", bits);
   session->internals.dh_prime_bits = bits;
 }
 
@@ -735,40 +734,4 @@ gnutls_anon_set_params_function (gnutls_anon_server_credentials_t res,
                                  gnutls_params_function * func)
 {
   res->params_func = func;
-}
-
-/**
- * gnutls_load_file:
- * @filename: the name of the file to load
- * @data: Where the file will be stored
- *
- * This function will load a file into a datum. The data are
- * zero terminated but the terminating null is not included in length.
- * The returned data are allocated using gnutls_malloc().
- *
- * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise
- *   an error code is returned.
- *
- * Since 3.1.0
- **/
-int gnutls_load_file(const char* filename, gnutls_datum_t * data)
-{
-size_t len;
-
-  data->data = (void*)read_binary_file(filename, &len);
-  if (data->data == NULL)
-    return GNUTLS_E_FILE_ERROR;
-  
-  if (malloc != gnutls_malloc)
-    {
-      void* tmp = gnutls_malloc(len);
-      
-      memcpy(tmp, data->data, len);
-      free(data->data);
-      data->data = tmp;
-    }
-  
-  data->size = len;
-  
-  return 0;
 }

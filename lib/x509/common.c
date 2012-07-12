@@ -805,7 +805,7 @@ _gnutls_x509_export_int_named (ASN1_TYPE asn1_data, const char *name,
     }
   else
     {                           /* PEM */
-      gnutls_datum_t out;
+      uint8_t *out;
       gnutls_datum_t tmp;
 
       result = _gnutls_x509_der_encode (asn1_data, name, &tmp, 0);
@@ -825,25 +825,31 @@ _gnutls_x509_export_int_named (ASN1_TYPE asn1_data, const char *name,
           return result;
         }
 
-      if ((size_t) out.size > *output_data_size)
+      if (result == 0)
+        {                       /* oooops */
+          gnutls_assert ();
+          return GNUTLS_E_INTERNAL_ERROR;
+        }
+
+      if ((size_t) result > *output_data_size)
         {
           gnutls_assert ();
-          gnutls_free (out.data);
-          *output_data_size = (size_t)out.size+1;
+          gnutls_free (out);
+          *output_data_size = (size_t)result;
           return GNUTLS_E_SHORT_MEMORY_BUFFER;
         }
 
-      *output_data_size = (size_t)out.size;
+      *output_data_size = (size_t)result;
 
       if (output_data)
         {
-          memcpy (output_data, out.data, (size_t)out.size);
+          memcpy (output_data, out, (size_t)result);
 
           /* do not include the null character into output size.
            */
           *output_data_size = (size_t)result - 1;
         }
-      gnutls_free (out.data);
+      gnutls_free (out);
 
     }
 
@@ -988,42 +994,6 @@ cleanup:
   gnutls_free (tmp);
   return result;
 
-}
-
-int _gnutls_x509_encode_octet_string(const void* input_data, size_t input_size,
-                                     gnutls_datum_t* output)
-{
-  int ret;
-  ASN1_TYPE c2 = ASN1_TYPE_EMPTY;
-
-  if ((ret = asn1_create_element
-       (_gnutls_get_pkix (), "PKIX1.pkcs-7-Data", &c2)) != ASN1_SUCCESS)
-    {
-      gnutls_assert ();
-      ret = _gnutls_asn2err (ret);
-      goto cleanup;
-    }
-
-  ret = asn1_write_value (c2, "", input_data, input_size);
-  if (ret != ASN1_SUCCESS)
-    {
-      gnutls_assert ();
-      ret = _gnutls_asn2err (ret);
-      goto cleanup;
-    }
-
-  ret = _gnutls_x509_der_encode(c2, "", output, 0);
-  if (ret < 0)
-    {
-      gnutls_assert ();
-      goto cleanup;
-    }
-
-  ret = 0;
-
-cleanup:
-  asn1_delete_structure (&c2);
-  return ret;
 }
 
 /* DER Encodes the src ASN1_TYPE and stores it to

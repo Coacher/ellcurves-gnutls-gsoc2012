@@ -451,9 +451,11 @@ gnutls_x509_privkey_import (gnutls_x509_privkey_t key,
    */
   if (format == GNUTLS_X509_FMT_PEM)
     {
+      uint8_t *out;
+
       /* Try the first header */
       result =
-        _gnutls_fbase64_decode (PEM_KEY_RSA, data->data, data->size, &_data);
+        _gnutls_fbase64_decode (PEM_KEY_RSA, data->data, data->size, &out);
 
       if (result >= 0)
         key->pk_algorithm = GNUTLS_PK_RSA;
@@ -463,7 +465,7 @@ gnutls_x509_privkey_import (gnutls_x509_privkey_t key,
           /* try for the second header */
           result =
             _gnutls_fbase64_decode (PEM_KEY_DSA, data->data, data->size,
-                                    &_data);
+                                    &out);
 
           if (result >= 0)
             key->pk_algorithm = GNUTLS_PK_DSA;
@@ -473,7 +475,7 @@ gnutls_x509_privkey_import (gnutls_x509_privkey_t key,
               /* try for the second header */
               result =
                 _gnutls_fbase64_decode (PEM_KEY_ECC, data->data, data->size,
-                                    &_data);
+                                    &out);
               if (result >= 0)
                 key->pk_algorithm = GNUTLS_PK_EC;
              }
@@ -484,6 +486,9 @@ gnutls_x509_privkey_import (gnutls_x509_privkey_t key,
           gnutls_assert ();
           goto failover;
         }
+
+      _data.data = out;
+      _data.size = result;
 
       need_free = 1;
     }
@@ -557,70 +562,6 @@ failover:
 
   return result;
 }
-
-/**
- * gnutls_x509_privkey_import2:
- * @key: The structure to store the parsed key
- * @data: The DER or PEM encoded certificate.
- * @format: One of DER or PEM
- * @password: A password (optional)
- *
- * This function will import the given DER or PEM encoded key, to 
- * the native #gnutls_x509_privkey_t format, irrespective of the
- * input format. The input format is auto-detected.
- *
- * The supported formats are typical X.509, PKCS #8 and the openssl
- * format.
- *
- * If the provided key is encrypted but no password was given, then
- * %GNUTLS_E_DECRYPTION_FAILED is returned.
- *
- * Returns: On success, %GNUTLS_E_SUCCESS (0) is returned, otherwise a
- *   negative error value.
- **/
-int
-gnutls_x509_privkey_import2 (gnutls_x509_privkey_t key,
-                            const gnutls_datum_t * data,
-                            gnutls_x509_crt_fmt_t format,
-                            const char* password)
-{
-  int ret = 0;
-  
-  if (password == NULL)
-    {
-      ret = gnutls_x509_privkey_import(key, data, format);
-      if (ret < 0)
-        {
-          gnutls_assert();
-        }
-    }
-  
-  if (password != NULL || ret < 0)
-    {
-      ret = gnutls_x509_privkey_import_pkcs8(key, data, format, password, 0);
-      if (ret < 0)
-        {
-          if (format == GNUTLS_X509_FMT_PEM)
-            {
-              int err;
-              err = gnutls_x509_privkey_import_openssl(key, data, password);
-              if (err < 0)
-                {
-                  if (err == GNUTLS_E_DECRYPTION_FAILED) ret = err;
-                  gnutls_assert();
-                  goto cleanup;
-                }
-            }
-        }
-    
-    }
-
-  ret = 0;
-
-cleanup:  
-  return ret;
-}
-
 
 /**
  * gnutls_x509_privkey_import_rsa_raw:
@@ -1541,7 +1482,8 @@ _gnutls_x509_privkey_sign_hash2 (gnutls_x509_privkey_t signer,
       goto cleanup;
     }
 
-  ret = _gnutls_pk_sign (signer->pk_algorithm, signature, &digest, &signer->params);
+  ret = _gnutls_soft_sign (signer->pk_algorithm, &signer->params,
+                           &digest, signature);
 
   if (ret < 0)
     {
@@ -1585,8 +1527,8 @@ gnutls_x509_privkey_sign_hash (gnutls_x509_privkey_t key,
       return GNUTLS_E_INVALID_REQUEST;
     }
 
-  result = _gnutls_pk_sign (key->pk_algorithm, signature, hash, &key->params);
-
+  result = _gnutls_soft_sign (key->pk_algorithm, &key->params,
+                              hash, signature);
   if (result < 0)
     {
       gnutls_assert ();

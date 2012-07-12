@@ -1,7 +1,7 @@
-## Process this file with automake to produce Makefile.in
-# Copyright (C) 2000-2012 Free Software Foundation, Inc.
+# libgnutlsxx.map -- linker script for libgnutls.              -*- ld-script -*-
+# Copyright (C) 2005-2012 Free Software Foundation, Inc.
 #
-# Author: Nikos Mavrogiannopoulos
+# Author: Simon Josefsson
 #
 # This file is part of GnuTLS.
 #
@@ -18,12 +18,13 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>
 
-nobase_include_HEADERS = gnutls/x509.h gnutls/pkcs12.h gnutls/compat.h	\
-	gnutls/openpgp.h gnutls/crypto.h gnutls/pkcs11.h		\
-	gnutls/abstract.h gnutls/dtls.h gnutls/ocsp.h
+GNUTLS_2_10
+{
+  global:
+    extern "C++" {
+      # Allow all symbols for C++. It has its own way to keep
+      # symbol namespaces.
 
-if ENABLE_CXX
-nobase_include_HEADERS += gnutls/gnutlsxx.h
-endif
-
-nobase_nodist_include_HEADERS = gnutls/gnutls.h
+      *;
+  };
+};

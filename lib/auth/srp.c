@@ -62,12 +62,43 @@ const mod_auth_st srp_auth_struct = {
 #define V session->key->x
 #define S session->key->KEY
 
+/* Checks if b%n==0 which is a fatal srp error.
+ * Returns a proper error code in that case, and 0 when
+ * all are ok.
+ */
+inline static int
+check_b_mod_n (bigint_t b, bigint_t n)
+{
+  int ret;
+  bigint_t r;
+
+  r = _gnutls_mpi_mod (b, n);
+
+  if (r == NULL)
+    {
+      gnutls_assert ();
+      return GNUTLS_E_MEMORY_ERROR;
+    }
+
+  ret = _gnutls_mpi_cmp_ui (r, 0);
+
+  _gnutls_mpi_release (&r);
+
+  if (ret == 0)
+    {
+      gnutls_assert ();
+      return GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
+    }
+
+  return 0;
+}
+
 /* Checks if a%n==0,+1,-1%n which is a fatal srp error.
  * Returns a proper error code in that case, and 0 when
  * all are ok.
  */
 inline static int
-check_param_mod_n (bigint_t a, bigint_t n, int is_a)
+check_a_mod_n (bigint_t a, bigint_t n)
 {
   int ret, err = 0;
   bigint_t r;
@@ -82,15 +113,12 @@ check_param_mod_n (bigint_t a, bigint_t n, int is_a)
   ret = _gnutls_mpi_cmp_ui (r, 0);
   if (ret == 0) err = 1;
 
-  if (is_a != 0)
-    {
-      ret = _gnutls_mpi_cmp_ui (r, 1);
-      if (ret == 0) err = 1;
+  ret = _gnutls_mpi_cmp_ui (r, 1);
+  if (ret == 0) err = 1;
 
-      _gnutls_mpi_add_ui(r, r, 1);
-      ret = _gnutls_mpi_cmp (r, n);
-      if (ret == 0) err = 1;
-    }
+  _gnutls_mpi_add_ui(r, r, 1);
+  ret = _gnutls_mpi_cmp (r, n);
+  if (ret == 0) err = 1;
 
   _gnutls_mpi_release (&r);
 
@@ -364,7 +392,7 @@ _gnutls_proc_srp_client_kx (gnutls_session_t session, uint8_t * data,
 
   /* Checks if A % n == 0.
    */
-  if ((ret = check_param_mod_n (A, N, 1)) < 0)
+  if ((ret = check_a_mod_n (A, N)) < 0)
     {
       gnutls_assert ();
       return ret;
@@ -675,7 +703,7 @@ check_g_n (const uint8_t * g, size_t n_g, const uint8_t * n, size_t n_n)
 }
 
 /* Check if N is a prime and G a generator of the
- * group. This check is only done if N is big enough.
+ * group. This is check only done if N is big enough.
  * Otherwise only the included parameters must be used.
  */
 static int
@@ -918,7 +946,7 @@ _gnutls_proc_srp_server_kx (gnutls_session_t session, uint8_t * data,
 
   /* Checks if b % n == 0
    */
-  if ((ret = check_param_mod_n (B, N, 0)) < 0)
+  if ((ret = check_b_mod_n (B, N)) < 0)
     {
       gnutls_assert ();
       return ret;

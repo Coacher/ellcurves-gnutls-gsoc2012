@@ -135,6 +135,7 @@ int ecc_projective_add_point(ecc_point *P, ecc_point *Q, ecc_point *R, mpz_t A, 
 /* R = kG */
 int ecc_mulmod(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int map);
 int ecc_mulmod_timing(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int map);
+int ecc_mulmod_wmnaf(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int map);
 
 /* map P to affine from projective */
 int ecc_map(ecc_point *P, mpz_t modulus);

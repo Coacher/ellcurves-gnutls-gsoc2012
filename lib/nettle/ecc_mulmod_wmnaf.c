@@ -47,7 +47,7 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
     ecc_point *tG, *pos[PRECOMPUTE_LENGTH_SMALL], *neg[PRECOMPUTE_LENGTH_SMALL];
     int        i, j, err;
 
-    signed char* wmnaf;
+    signed char* wmnaf = NULL;
     size_t wmnaf_len;
     signed char digit;
 

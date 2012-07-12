@@ -1,29 +1,63 @@
 #include <stdlib.h> 
 #include <stdio.h> 
+#include <time.h>
 #include <gmp.h>
 
+#include "ecc.c"
 #include "my_ecc.h"
+
+#define NUM_OF_TRIES 3
 
 int main(void) {
     mpz_t k, a, modulus;
     ecc_point *G, *Rclas, *Rwmnaf;
-    int map = 0;
+    int map = 1;
+    
+    int rand, i, j;
+
+    clock_t start;
+    double wmnaf_time, classic_time;
+
+    char check;
 
     mpz_inits(k, a, modulus, NULL);
 
     G = ecc_new_point();
     Rclas = ecc_new_point();
     Rwmnaf = ecc_new_point();
+    
+    GNUTLS_ECC_CURVE_LOOP (
+        printf("Running testing sequence for curve %s\n", p->name);
 
-    /* SECP256R1 */
-    mpz_set_str(G->x, "0x6B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C296", 0);
-    mpz_set_str(G->y, "0x4FE342E2FE1A7F9B8EE7EB4A7C0F9E162BCE33576B315ECECBB6406837BF51F5", 0);
-    mpz_set_str(a,    "0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFC", 0);
-    mpz_set_str(modulus, "0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF", 0);
+        mpz_set_str(G->x,    p->Gx,     16);
+        mpz_set_str(G->y,    p->Gy,     16);
+        mpz_set_ui (G->z,    1);
 
-    mpz_set_ui(k, 100);
+        mpz_set_str(modulus, p->prime,  16);
+        mpz_set_si(a, -3);
 
-    ecc_mulmod_wmnaf(k, G, Rclas, a, modulus, map);
+        for (i = 0; i < NUM_OF_TRIES; ++i) {
+            rand = random();
+            printf("Testing for k = %i\n", rand);
+
+            mpz_set_ui(k, rand);
+
+            start = clock();
+            ecc_mulmod(k, G, Rclas, a, modulus, map);
+            classic_time = (clock() - start) / CLOCKS_PER_SEC;
+
+            start = clock();
+            ecc_mulmod_wmnaf(k, G, Rwmnaf, a, modulus, map);
+            wmnaf_time = (clock() - start) / CLOCKS_PER_SEC;
+
+            check = (!mpz_cmp(Rwmnaf->x, Rclas->x)) && (!mpz_cmp(Rwmnaf->y, Rclas->y));
+
+            printf("Check: %i; Classic time: %f; wMNAF time: %f\n", check, classic_time, wmnaf_time);
+        }
+
+        printf("\n");
+
+    );
 
     return 0;
 }

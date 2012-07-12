@@ -12,7 +12,7 @@ test: my_ecc.o test.o
 my_ecc.o: my_ecc.c my_ecc.h
 	$(CC) -c my_ecc.c
 
-test.o: test.c my_ecc.h
+test.o: test.c ecc.c my_ecc.h
 	$(CC) -c test.c
 
 clean:

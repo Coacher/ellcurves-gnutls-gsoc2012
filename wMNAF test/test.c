@@ -4,8 +4,9 @@
 
 #include "log.c"
 
-/* return array containing wMNAF representation of given mpz_t number.
- * inspired by OpenSSL version of this function.
+/* 
+ * Return array with wMNAF representation of given mpz_t number x.
+ * based on OpenSSL version of this function.
  * overview of this algorithm can be found in
  * Bodo Moller, Improved Techniques for Fast Exponentiation.
  * Information Security and Cryptology – ICISC 2002, Springer-Verlag LNCS 2587, pp. 298–312
@@ -18,9 +19,10 @@ signed char* wMNAF(mpz_t x, int w, size_t *ret_len) {
     size_t len = 0, j;
     
     if (!mpz_sgn(x)) { 
+        /* x == 0 */
         ret = malloc(1);
         if (!ret) {
-            dbg_msg("Unable to allocate memory in wMNAF.\n");
+            dbg_msg("Unable to allocate memory for wMNAF repr.\n");
             exit(EXIT_FAILURE);
         }
 
@@ -30,33 +32,36 @@ signed char* wMNAF(mpz_t x, int w, size_t *ret_len) {
     }
         
     if (w <= 0 || w > 7) {
-        dbg_msg("signed char can represent integers with absolute values less than 2^7.\n");
+        dbg_msg("`signed char` can represent integers with absolute values less than 2^7.\n");
         exit(EXIT_FAILURE);
     }
 
-    bit = 1 << w;        /* at most 128 */
-    next_bit = bit << 1; /* at most 256 */
-    mask = next_bit - 1; /* at most 255 */
+    /* 2^w, at most 128 */
+    bit = 1 << w;
+    /* 2^(w + 1), at most 256 */
+    next_bit = bit << 1;
+    /* 2^(w + 1) - 1, at most 255 */
+    mask = next_bit - 1;
 
     if (mpz_sgn(x) < 0) {
         sign = -1;
     }
 
     len = mpz_sizeinbase(x, 2);
-    /* modified wMNAF may be one digit longer than binary representation
+    /* wMNAF may be one digit longer than binary representation
      * (*ret_len will be set to the actual length, i.e. at most
      * mpz_sizeinbase(x, 2) + 1) */
     ret = malloc(len + 1);
 
     if (!ret) {
-        dbg_msg("Unable to allocate memory in wMNAF.\n");
+        dbg_msg("Unable to allocate memory for wMNAF repr.\n");
         exit(EXIT_FAILURE);
     }
 
     window_val = ((int) mpz_getlimbn(x, 0) ) & mask;
     j = 0;
 
-    /* if j+w+1 >= len, window_val will not increase */
+    /* if (j + w + 1) >= len, window_val will not increase */
     while ((window_val != 0) || (j + w + 1 < len)) {
         int digit = 0;
 
@@ -108,7 +113,7 @@ signed char* wMNAF(mpz_t x, int w, size_t *ret_len) {
     }
 
     if (j > len + 1) {
-        dbg_msg("Unexpected j and len + 1 values: \"%i\", \"%i\".\n", j, len+1);
+        dbg_msg("Unexpected j and (len + 1) values: \"%i\", \"%i\".\n", j, len+1);
         exit(EXIT_FAILURE);
     }
     len = j;
@@ -119,8 +124,9 @@ signed char* wMNAF(mpz_t x, int w, size_t *ret_len) {
 
 int main(void) {
     mpz_t x;
-    signed char* wmnaf;
+    signed char* wmnaf = NULL;
     size_t wmnaf_len;
+    int w = 3;
 
     int i, j;
 
@@ -128,7 +134,7 @@ int main(void) {
 
     for (i = 0; i <= 128; ++i) {
         mpz_set_si(x, i);
-        wmnaf = wMNAF(x, 3, &wmnaf_len);
+        wmnaf = wMNAF(x, w, &wmnaf_len);
 
         printf("\"%3i\" has wMNAF repr. = [", i);
         for (j = wmnaf_len - 1; j > 0; --j) {

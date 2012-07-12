@@ -123,6 +123,9 @@ ecc_point *ecc_new_point(void);
 void       ecc_del_point(ecc_point *p);
 
 /* point ops (mp == montgomery digit) */
+/* R = -P */
+int ecc_projective_negate_point(ecc_point *P, ecc_point *R);
+
 /* R = 2P */
 int ecc_projective_dbl_point(ecc_point *P, ecc_point *R, mpz_t a,  mpz_t modulus);
 

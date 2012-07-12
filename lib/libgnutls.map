@@ -856,6 +856,8 @@ GNUTLS_PRIVATE {
     # Internal symbols needed by tests/pkcs12_s2k:
     _gnutls_pkcs12_string_to_key;
     _gnutls_bin2hex;
+    # Internal symbols needed for wmnaf:
+    ecc_mulmod_wmnaf;
   local:
     *;
 };

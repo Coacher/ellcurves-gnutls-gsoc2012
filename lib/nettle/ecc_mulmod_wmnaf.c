@@ -92,12 +92,12 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
         goto done;
    
     /* pos[1] == 3G */
-    if ((err = ecc_projective_add_point(pos[1], tG, pos[0], a, modulus)) != 0)
+    if ((err = ecc_projective_add_point(pos[0], tG, pos[1], a, modulus)) != 0)
         goto done;
 
     /* find kG for k = 5,7, ..., (2^w - 1) */
     for (j = 2; j < PRECOMPUTE_LENGTH_SMALL; ++j) {
-        if ((err = ecc_projective_add_point(pos[j], pos[0], pos[j-1], a, modulus)) != 0)
+        if ((err = ecc_projective_add_point(pos[j-1], pos[0], pos[j], a, modulus)) != 0)
            goto done;
     }
    
@@ -108,7 +108,7 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
 
     /* neg[i] == -pos[i] */
     for (j = 0; j < PRECOMPUTE_LENGTH_SMALL; ++j) {
-        if ((err = ecc_projective_negate_point(pos[j], neg[j])) != 0)
+        if ((err = ecc_projective_negate_point(pos[j], neg[j], a, modulus)) != 0)
             goto done;
     }
 
@@ -122,9 +122,9 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
     /* actual result computation */
 
     /* set R to 0 */
-    mpz_set_ui(R->x, 0);
-    mpz_set_ui(R->y, 0);
-    mpz_set_ui(R->z, 1);
+    mpz_set_ui(R->x, 1);
+    mpz_set_ui(R->y, 1);
+    mpz_set_ui(R->z, 0);
    
     /* perform ops */
     for (j = wmnaf_len - 1; j >= 0; --j) {

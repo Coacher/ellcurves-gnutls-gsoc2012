@@ -1,12 +1,15 @@
 #!/bin/bash
 
-# this script is broken for a while.
+# we are in "ecc_mulmod_wmnaf test"
+DIRNAME="ecc_mulmod_wmnaf test"
 
-# we are in ./"ecc_mulmod_wmnaf test"
+# step up & create diff
+cd ../
+diff -Nur ./gnutls/lib ./lib > ./wmnaf-tmp.patch
 
-# create diff
-#diff -Nur ../gnutls/lib ../lib > ./wmnaf.patch
+# step into gnutls tree
+cd ./gnutls/
 
-#cd ../gnutls/
-#patch -Np0 -i ../"ecc_mulmod_wmnaf test/wmnaf.patch"
-#rm ../"ecc_mulmod_wmnaf test/wmnaf.patch"
+# patch & clean
+patch -Np1 -i "../wmnaf-tmp.patch"
+rm "../wmnaf-tmp.patch"

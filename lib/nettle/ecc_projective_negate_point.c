@@ -34,13 +34,13 @@ ecc_projective_negate_point (ecc_point * P, ecc_point * R, mpz_t modulus)
   if (P == NULL || R == NULL)
     return -1;
 
-  if (ecc_projective_isinfinity(P)) {
+  if (ecc_projective_isneutral(P)) {
       /* we set R.y to modulus - P.y to avoid negative coordinates */
       mpz_set(R->x, P->x);
       mpz_sub(R->y, modulus, P->y);
       mpz_set(R->z, P->z);
   } else {
-      /* -infinity = infinity*/
+      /* -neutral = neutral*/
       mpz_set_ui(R->x, 1);
       mpz_set_ui(R->y, 1);
       mpz_set_ui(R->z, 0);

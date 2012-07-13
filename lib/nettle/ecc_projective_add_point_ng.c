@@ -80,8 +80,8 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
         }
     }
   
-  if (!ecc_projective_isinfinity(Q)) {
-    /* P + Q = P + infinity = P */
+  if (!ecc_projective_isneutral(Q)) {
+    /* P + Q = P + neutral = P */
 
     mpz_set (R->x, P->x);
     mpz_set (R->y, P->y);
@@ -90,8 +90,8 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
     return 0;
   }
   
-  if (!ecc_projective_isinfinity(P)) {
-    /* P + Q = infinity + Q = Q */
+  if (!ecc_projective_isneutral(P)) {
+    /* P + Q = neutral + Q = Q */
 
     mpz_set (R->x, Q->x);
     mpz_set (R->y, Q->y);

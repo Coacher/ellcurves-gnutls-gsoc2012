@@ -21,20 +21,20 @@
 #include "ecc.h"
 
 /*
-   Check if the given point is the infinity point.
+   Check if the given point is the neutral point.
    @param P        The point to check
-   @return  0 if given point == infinity point
-   @return  1 if given point != infinity point
+   @return  0 if given point == neutral point
+   @return  1 if given point != neutral point
    @return -1 otherwise
 */
 int
-ecc_projective_isinfinity (ecc_point * P)
+ecc_projective_isneutral (ecc_point * P)
 {
 
   if (P == NULL)
     return -1;
 
-  /* infinity point is a point with projective
+  /* neutral point is a point with projective
    * coordinates (k,k,0) where k is any real number
    * excluding (0,0,0) point
    * */

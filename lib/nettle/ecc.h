@@ -138,8 +138,8 @@ int ecc_mulmod(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int 
 int ecc_mulmod_timing(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int map);
 int ecc_mulmod_wmnaf(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int map);
 
-/* check if the given point is infinity point */
-int ecc_projective_isinfinity(ecc_point *P);
+/* check if the given point is neutral point */
+int ecc_projective_isneutral(ecc_point *P);
 
 /* map P to affine from projective */
 int ecc_map(ecc_point *P, mpz_t modulus);

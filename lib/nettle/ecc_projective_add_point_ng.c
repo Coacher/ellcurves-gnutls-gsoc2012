@@ -32,7 +32,7 @@
    @return 0 on success
 */
 int
-ecc_projective_add_point (ecc_point * P, ecc_point * Q, ecc_point * R,
+ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
                               mpz_t a, mpz_t modulus)
 {
   /* The algorithm used is "add-2007-bl" method.

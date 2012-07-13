@@ -108,7 +108,7 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
 
     /* neg[i] == -pos[i] */
     for (j = 0; j < PRECOMPUTE_LENGTH_SMALL; ++j) {
-        if ((err = ecc_projective_negate_point(pos[j], neg[j], a, modulus)) != 0)
+        if ((err = ecc_projective_negate_point(pos[j], neg[j], modulus)) != 0)
             goto done;
     }
 

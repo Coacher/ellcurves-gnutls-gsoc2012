@@ -24,13 +24,11 @@
    Negate an ECC point
    @param P        The point to negate
    @param R        [out] The destination of the negate
-   @param a        Curve's a value
    @param modulus  The modulus of the field the ECC curve is in
    @return 0 on success
 */
 int
-ecc_projective_negate_point (ecc_point * P, ecc_point * R,
-                              mpz_t a, mpz_t modulus)
+ecc_projective_negate_point (ecc_point * P, ecc_point * R, mpz_t modulus)
 {
 
   if (P == NULL || R == NULL)

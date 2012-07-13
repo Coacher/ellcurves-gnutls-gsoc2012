@@ -124,18 +124,22 @@ void       ecc_del_point(ecc_point *p);
 
 /* point ops (mp == montgomery digit) */
 /* R = -P */
-int ecc_projective_negate_point(ecc_point *P, ecc_point *R, mpz_t a,  mpz_t modulus);
+int ecc_projective_negate_point(ecc_point *P, ecc_point *R, mpz_t modulus);
 
 /* R = 2P */
 int ecc_projective_dbl_point(ecc_point *P, ecc_point *R, mpz_t a,  mpz_t modulus);
 
 /* R = P + Q */
 int ecc_projective_add_point(ecc_point *P, ecc_point *Q, ecc_point *R, mpz_t A, mpz_t modulus);
+int ecc_projective_add_point_ng(ecc_point *P, ecc_point *Q, ecc_point *R, mpz_t A, mpz_t modulus);
 
 /* R = kG */
 int ecc_mulmod(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int map);
 int ecc_mulmod_timing(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int map);
 int ecc_mulmod_wmnaf(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int map);
+
+/* check if the given point is infinity point */
+int ecc_projective_isinfinity(ecc_point *P);
 
 /* map P to affine from projective */
 int ecc_map(ecc_point *P, mpz_t modulus);

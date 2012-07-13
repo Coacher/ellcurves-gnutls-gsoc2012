@@ -841,9 +841,7 @@ GNUTLS_PRIVATE {
     ecc_mulmod;
     ecc_mulmod_wmnaf;
     ecc_projective_add_point;
-    ecc_projective_dbl_point;
-    ecc_projective_negate_point;
-    ecc_map;
+    ecc_projective_add_point_ng;
   local:
     *;
 };

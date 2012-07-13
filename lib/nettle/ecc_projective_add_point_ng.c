@@ -20,8 +20,6 @@
 
 #include "ecc.h"
 
-/* experimantal point addition. broken right now. */
-
 /*
    Add two ECC points
    @param P        The point to add
@@ -39,7 +37,7 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
    * It costs 11M + 5S.
    * See http://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian.html for
    * description and example.
-   * The original version uses several vars:
+   * The original version uses vars:
    * Z1Z1, Z2Z2, U1, U2, S1, S2, H, I, J, r, V.
    * This version uses only:
    * Z1Z1, Z2Z2, S1, H, J, r, V.
@@ -81,6 +79,26 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
           return 0;
         }
     }
+  
+  if (!ecc_projective_isinfinity(Q)) {
+    /* P + Q = P + infinity = P */
+
+    mpz_set (R->x, P->x);
+    mpz_set (R->y, P->y);
+    mpz_set (R->z, P->z);
+
+    return 0;
+  }
+  
+  if (!ecc_projective_isinfinity(P)) {
+    /* P + Q = infinity + Q = Q */
+
+    mpz_set (R->x, Q->x);
+    mpz_set (R->y, Q->y);
+    mpz_set (R->z, Q->z);
+
+    return 0;
+  }
 
   /* Z1Z1 = Z1 * Z1 */
   mpz_mul (Z1Z1, P->z, P->z);
@@ -100,7 +118,7 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
   mpz_mul (t1, Z1Z1, Q->x);
   mpz_mod (t1, t1, modulus);
 
-  /* H = U2 - U1  = t1 - t0*/
+  /* H = U2 - U1  = t1 - t0 */
   mpz_sub (H, t1, t0);
   if (mpz_cmp_ui (H, 0) < 0)
     {
@@ -109,16 +127,16 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
   
   /* t1 = 2H */
   mpz_add (t1, H, H);
-  if (mpz_cmp (H, modulus) >= 0)
+  if (mpz_cmp (t1, modulus) >= 0)
     {
-      mpz_sub (H, H, modulus);
+      mpz_sub (t1, t1, modulus);
     }
   /* t1 = (2H)^2 */
   /* it is the original I */
-  mpz_mul (t1, t0, t0);
+  mpz_mul (t1, t1, t1);
   mpz_mod (t1, t1, modulus);
   
-  /* J = H * I = H * t1*/ 
+  /* J = H * I = H * t1 */ 
   mpz_mul (J, t1, H);
   mpz_mod (J, J, modulus);
 
@@ -163,9 +181,9 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
   mpz_mod (t0, t0, modulus);
   /* t1 = 2V */
   mpz_add (t1, V, V);
-  if (mpz_cmp (V, modulus) >= 0)
+  if (mpz_cmp (t1, modulus) >= 0)
     {
-      mpz_sub (V, V, modulus);
+      mpz_sub (t1, t1, modulus);
     }
   /* t0 = t0 - J */
   mpz_sub (t0, t0, J);
@@ -181,14 +199,14 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
     }
   
 
-  /* t0 = V - X */
-  mpz_sub (t0, V, R->x);
-  if (mpz_cmp_ui (t0, 0) < 0)
+  /* t1 = V - X */
+  mpz_sub (t1, V, R->x);
+  if (mpz_cmp_ui (t1, 0) < 0)
     {
-      mpz_add (t0, t0, modulus);
+      mpz_add (t1, t1, modulus);
     }
-  /* t0 = r * t0 */ 
-  mpz_mul (t0, r, t0);
+  /* t0 = r * t1 */ 
+  mpz_mul (t0, r, t1);
   mpz_mod (t0, t0, modulus);
   /* t1 = S1 * J */ 
   mpz_mul (t1, S1, J);
@@ -213,20 +231,20 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
     {
       mpz_sub (t0, t0, modulus);
     }
-  /* t0 = (t0)^2 */
-  mpz_mul (t0, t0, t0);
-  mpz_mod (t0, t0, modulus);
-  /* t0 = t0 - Z1Z1 */
-  mpz_sub (t0, t0, Z1Z1);
-  if (mpz_cmp_ui (t0, 0) < 0)
+  /* t1 = (t0)^2 */
+  mpz_mul (t1, t0, t0);
+  mpz_mod (t1, t1, modulus);
+  /* t1 = t1 - Z1Z1 */
+  mpz_sub (t1, t1, Z1Z1);
+  if (mpz_cmp_ui (t1, 0) < 0)
     {
-      mpz_add (t0, t0, modulus);
+      mpz_add (t1, t1, modulus);
     }
-  /* t0 = t0 - Z2Z2 */
-  mpz_sub (t0, t0, Z2Z2);
-  if (mpz_cmp_ui (t0, 0) < 0)
+  /* t1 = t1 - Z2Z2 */
+  mpz_sub (t1, t1, Z2Z2);
+  if (mpz_cmp_ui (t1, 0) < 0)
     {
-      mpz_add (t0, t0, modulus);
+      mpz_add (t1, t1, modulus);
     }
   /* Z = ((Z1 + Z2)^2 - Z1Z1 - Z2Z2)*H = t0*H */ 
   mpz_mul (R->z, t0, H);

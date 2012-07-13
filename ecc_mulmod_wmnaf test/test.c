@@ -11,7 +11,7 @@
 int main(void) {
     mpz_t k, a, modulus;
     ecc_point *G, *Rclas, *Rwmnaf;
-    int map = 1;
+    int map = 0;
     
     int rand, i, j;
 
@@ -27,7 +27,7 @@ int main(void) {
     Rwmnaf = ecc_new_point();
     
     GNUTLS_ECC_CURVE_LOOP (
-        printf("Running testing sequence for curve %s\n", p->name);
+        printf("Running test sequence for curve %s\n", p->name);
 
         mpz_set_str(G->x,    p->Gx,     16);
         mpz_set_str(G->y,    p->Gy,     16);
@@ -44,15 +44,15 @@ int main(void) {
 
             start = clock();
             ecc_mulmod(k, G, Rclas, a, modulus, map);
-            classic_time = (clock() - start) / CLOCKS_PER_SEC;
+            classic_time = ((double) (clock() - start)) / CLOCKS_PER_SEC;
 
             start = clock();
             ecc_mulmod_wmnaf(k, G, Rwmnaf, a, modulus, map);
-            wmnaf_time = (clock() - start) / CLOCKS_PER_SEC;
+            wmnaf_time = ((double) (clock() - start)) / CLOCKS_PER_SEC;
 
             check = (!mpz_cmp(Rwmnaf->x, Rclas->x)) && (!mpz_cmp(Rwmnaf->y, Rclas->y));
 
-            printf("Check: %i; Classic time: %f; wMNAF time: %f\n", check, classic_time, wmnaf_time);
+            printf("Check: %i; Classic time: %.15f; wMNAF time: %.15f\n", check, classic_time, wmnaf_time);
         }
 
         printf("\n");

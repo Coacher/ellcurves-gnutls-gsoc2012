@@ -126,7 +126,7 @@ int main(void) {
     mpz_t x;
     signed char* wmnaf = NULL;
     size_t wmnaf_len;
-    int w = 3;
+    int w = 4;
 
     int i, j;
 

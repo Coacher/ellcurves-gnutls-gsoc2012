@@ -22,9 +22,7 @@
 
 /*
    Check if the given point is the infinity point.
-   @param P        The point to negate
-   @param a        Curve's a value
-   @param modulus  The modulus of the field the ECC curve is in
+   @param P        The point to check
    @return  0 if given point == infinity point
    @return  1 if given point != infinity point
    @return -1 otherwise

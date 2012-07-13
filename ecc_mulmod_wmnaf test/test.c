@@ -6,7 +6,7 @@
 #include "ecc.c"
 #include "my_ecc.h"
 
-#define NUM_OF_TRIES 3
+#define NUM_OF_TRIES 0
 
 int main(void) {
     mpz_t k, a, modulus;
@@ -35,6 +35,21 @@ int main(void) {
 
         mpz_set_str(modulus, p->prime,  16);
         mpz_set_si(a, -3);
+
+        printf("G:\n");
+        gmp_printf("%Zd\n%Zd\n%Zd\n", G->x, G->y, G->z);
+
+        mpz_set_ui(Rclas->x, 1);
+        mpz_set_ui(Rclas->y, 1);
+        mpz_set_ui(Rclas->z, 0);
+
+        printf("Rclas:\n");
+        gmp_printf("%Zd\n%Zd\n%Zd\n", Rclas->x, Rclas->y, Rclas->z);
+
+        ecc_projective_add_point(G, Rclas, Rwmnaf, a, modulus);
+
+        printf("G + Rclas:\n");
+        gmp_printf("%Zd\n%Zd\n%Zd\n", Rwmnaf->x, Rwmnaf->y, Rwmnaf->z);
 
         for (i = 0; i < NUM_OF_TRIES; ++i) {
             rand = random();

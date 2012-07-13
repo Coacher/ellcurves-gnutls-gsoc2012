@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# we are in ecc_mulmod_wmnaf test
+# we are in ./"ecc_mulmod_wmnaf test"
 
 # create diff
 diff -Nur ../gnutls/lib ../lib > ./wmnaf.patch

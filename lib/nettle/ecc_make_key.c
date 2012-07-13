@@ -104,7 +104,7 @@ ecc_make_key_ex (void *random_ctx, nettle_random_func random, ecc_key * key,
   if (timing_res)
     err = ecc_mulmod_timing (key->k, base, &key->pubkey, key->A, key->prime, 1);
   else
-    err = ecc_mulmod (key->k, base, &key->pubkey, key->A, key->prime, 1);
+    err = ecc_mulmod_wmnaf (key->k, base, &key->pubkey, key->A, key->prime, 1);
 
   if (err != 0)
     goto errkey;

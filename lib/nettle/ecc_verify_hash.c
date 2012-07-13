@@ -111,11 +111,11 @@ ecc_verify_hash (struct dsa_signature *signature,
   mpz_set (mQ->z, key->pubkey.z);
 
   /* compute u1*mG + u2*mQ = mG */
-  if ((err = ecc_mulmod (u1, mG, mG, key->A, key->prime, 0)) != 0)
+  if ((err = ecc_mulmod_wmnaf (u1, mG, mG, key->A, key->prime, 0)) != 0)
     {
       goto error;
     }
-  if ((err = ecc_mulmod (u2, mQ, mQ, key->A, key->prime, 0)) != 0)
+  if ((err = ecc_mulmod_wmnaf (u2, mQ, mQ, key->A, key->prime, 0)) != 0)
     {
       goto error;
     }

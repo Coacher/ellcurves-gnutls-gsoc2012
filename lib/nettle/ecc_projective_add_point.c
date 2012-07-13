@@ -77,8 +77,27 @@ ecc_projective_add_point (ecc_point * P, ecc_point * Q, ecc_point * R,
           return 0;
         }
     }
+  
+  if (!ecc_projective_isinfinity(Q)) {
+    /* P + Q = P + infinity = P */
 
+    mpz_set (R->x, P->x);
+    mpz_set (R->y, P->y);
+    mpz_set (R->z, P->z);
 
+    return 0;
+  }
+  
+  if (!ecc_projective_isinfinity(P)) {
+    /* P + Q = infinity + Q = Q */
+
+    mpz_set (R->x, Q->x);
+    mpz_set (R->y, Q->y);
+    mpz_set (R->z, Q->z);
+
+    return 0;
+  }
+  
   mpz_set (x, P->x);
   mpz_set (y, P->y);
   mpz_set (z, P->z);

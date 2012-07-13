@@ -46,7 +46,7 @@ int main(void) {
         printf("Rclas:\n");
         gmp_printf("%Zd\n%Zd\n%Zd\n", Rclas->x, Rclas->y, Rclas->z);
 
-        ecc_projective_add_point(G, Rclas, Rwmnaf, a, modulus);
+        ecc_projective_add_point(Rclas, G, Rwmnaf, a, modulus);
 
         printf("G + Rclas:\n");
         gmp_printf("%Zd\n%Zd\n%Zd\n", Rwmnaf->x, Rwmnaf->y, Rwmnaf->z);

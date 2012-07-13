@@ -38,7 +38,7 @@ ecc_projective_isinfinity (ecc_point * P)
    * coordinates (k,k,0) where k is any real number
    * excluding (0,0,0) point
    * */
-  if ( (mpz_cmp_si(P->z, 0)) || (mpz_cmp(P->x, P->y) )
+  if ( (mpz_cmp_si(P->z, 0)) || (mpz_cmp(P->x, P->y)) )
     return 1;
 
   if (!(mpz_cmp_si(P->x, 0)))

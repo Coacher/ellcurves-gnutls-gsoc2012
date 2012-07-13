@@ -154,6 +154,8 @@ ecc_projective_dbl_point (ecc_point * P, ecc_point * R, mpz_t a /* a is -3 */,
      mpz_set_ui(R->x, 1);
      mpz_set_ui(R->y, 1);
      mpz_set_ui(R->z, 0);
+
+     return 0;
    }
 }
 #endif

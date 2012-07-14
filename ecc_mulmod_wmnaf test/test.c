@@ -59,5 +59,11 @@ int main(void) {
 
     );
 
+    Rwmnaf = ecc_del_point();
+    Rclas = ecc_del_point();
+    G = ecc_del_point();
+
+    mpz_clears(k, a, modulus, NULL);
+
     return 0;
 }

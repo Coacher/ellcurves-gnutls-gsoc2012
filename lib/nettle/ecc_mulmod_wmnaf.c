@@ -55,11 +55,11 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
         return -1;
 
     /* alloc ram for precomputed values */
-    for (i = 0; i < PRECOMPUTE_LENGTH_SMALL; i++) {
+    for (i = 0; i < PRECOMPUTE_LENGTH_SMALL; ++i) {
         pos[i] = ecc_new_point();
         neg[i] = ecc_new_point();
         if (pos[i] == NULL || neg[i] == NULL) {
-            for (j = 0; j < i; j++) {
+            for (j = 0; j < i; ++j) {
               ecc_del_point(pos[j]);
               ecc_del_point(neg[j]);
             }
@@ -76,7 +76,7 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
         goto done; 
     }
 
-    /* tG = G  and convert to montgomery */
+    /* tG = G */
     mpz_set (tG->x, G->x);
     mpz_set (tG->y, G->y);
     mpz_set (tG->z, G->z);
@@ -87,7 +87,7 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
      * neg holds kG for k == -1,-3, ...,-(2^w - 1)
      */
 
-    /* pos[0] == 2G for a while, later it will be set to expected 1G */
+    /* pos[0] == 2G for a while, later it will be set to the expected 1G */
     if ((err = ecc_projective_dbl_point(tG, pos[0], a, modulus)) != 0)
         goto done;
    
@@ -119,9 +119,9 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
         goto done;
     }
 
-    /* actual result computation */
+    /* actual point computation */
 
-    /* set R to 0 */
+    /* set R to neutral */
     mpz_set_ui(R->x, 1);
     mpz_set_ui(R->y, 1);
     mpz_set_ui(R->z, 0);
@@ -153,7 +153,7 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
     }
 done:
     ecc_del_point(tG);
-    for (i = 0; i < PRECOMPUTE_LENGTH_SMALL; i++) {
+    for (i = 0; i < PRECOMPUTE_LENGTH_SMALL; ++i) {
         ecc_del_point(pos[i]);
         ecc_del_point(neg[i]);
     }
@@ -176,7 +176,7 @@ static signed char* wMNAF(mpz_t x, int w, size_t *ret_len) {
     int bit, next_bit, mask;
     size_t len = 0, j;
     
-    if (!mpz_sgn(x)) {
+    if ( !(sign = mpz_sgn(x)) ) {
         /* x == 0 */
         ret = malloc(1);
         if (!ret) {
@@ -188,11 +188,13 @@ static signed char* wMNAF(mpz_t x, int w, size_t *ret_len) {
         *ret_len = 1;
         return ret;
     }
-        
+
+#ifdef __WITH_EXTRA_SANITY_CHECKS    
     if (w <= 0 || w > 7) {
         fprintf(stderr, "`signed char` can represent integers with absolute values less than 2^7.\n");
         return NULL;
     }
+#endif
 
     /* 2^w, at most 128 */
     bit = 1 << w; 
@@ -200,10 +202,6 @@ static signed char* wMNAF(mpz_t x, int w, size_t *ret_len) {
     next_bit = bit << 1;
     /* 2^(w + 1) - 1, at most 255 */
     mask = next_bit - 1;
-
-    if (mpz_sgn(x) < 0) {
-        sign = -1;
-    }
 
     len = mpz_sizeinbase(x, 2);
     /* wMNAF may be one digit longer than binary representation

@@ -20,6 +20,8 @@
 
 #include "ecc.h"
 
+#define __WITH_EXTENDED_CHECKS
+
 /*
    Add two ECC points
    @param P        The point to add
@@ -56,7 +58,7 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
     }
 
   /* Check if P == Q and do doubling in that case 
-   * If Q == -P then P+Q=point at infinity
+   * If Q == -P then P + Q = neutral element
    */
   if ((mpz_cmp (P->x, Q->x) == 0) &&
       (mpz_cmp (P->z, Q->z) == 0))
@@ -79,7 +81,7 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
           return 0;
         }
     }
-  
+
   if (!ecc_projective_isneutral(Q)) {
     /* P + Q = P + neutral = P */
 
@@ -89,7 +91,7 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
 
     return 0;
   }
-  
+
   if (!ecc_projective_isneutral(P)) {
     /* P + Q = neutral + Q = Q */
 
@@ -120,10 +122,69 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
 
   /* H = U2 - U1  = t1 - t0 */
   mpz_sub (H, t1, t0);
+#ifdef __WITH_EXTENDED_CHECKS
+  /* Check if P->x = X1, P->y = Y1, P->z = Z1,
+   * Q->x = X2, Q-> Y2, Q->z = Z2
+   * satisfying X1 * (Z2)^2 = X2 * (Z1)^2 together with
+   * Y1 * (Z2)^3 != Y2 * (Z1)^3 or Y1 == Y2 == 0.
+   * In this case P + Q = neutral element.
+   * In short form the condition for Xs and Zs above
+   * can be written simply as H == 0, so resulting Z is 0
+   * and resulting point lies at infinity.
+   * In short form the condition Y1 * (Z2)^3 != Y2 * (Z1)^3
+   * can be written simply as r != 0, so resulting point
+   * is not (0,0,0), but (1,-r, 0) where r = +-1.
+   * Therefore a neutral element.
+   * If r = 0 then the resulting point is (0,0,0) which
+   * should never happen
+   * If Y1 == Y2 == 0 holds then it is point of
+   * finite order and we don't have any of them.
+   */
+  err = mpz_cmp_ui(H, 0);
+  if (err < 0) {
+      mpz_add (H, H, modulus);
+  } else if (!err) {
+#ifdef __WITH_EXTRA_SANITY_CHECKS
+  /* check if really r != 0 */
+
+  /* t0 = Z2 * Z2Z2 */
+  mpz_mul (t0, Z2Z2, Q->z);
+  mpz_mod (t0, t0, modulus);
+  /* S1 = Y1 * Z2 * Z2Z2 */
+  mpz_mul (S1, t0, P->y);
+  mpz_mod (S1, S1, modulus);
+
+  /* t1 = Z1 * Z1Z1 */
+  mpz_mul (t1, Z1Z1, P->z);
+  mpz_mod (t1, t1, modulus);
+  /* t0 = Y2 * Z1 * Z1Z1 */
+  /* it is the original S2 */
+  mpz_mul (t0, t1, Q->y);
+  mpz_mod (t0, t0, modulus);
+
+  /* t0 = S2 - S1 = t0 - S1 */
+  mpz_sub (t0, t0, S1);
+  if (mpz_cmp_ui (t0, 0) == 0)
+    {
+      /* r = 0 for a valid combination of points 
+       * this should never happen */
+      return -2;
+    }
+#endif
+  mpz_set_ui (R->x, 1);
+  mpz_set_ui (R->y, 1);
+  mpz_set_ui (R->z, 0);
+
+  return 0;
+
+  }
+
+#else
   if (mpz_cmp_ui (H, 0) < 0)
     {
       mpz_add (H, H, modulus);
     }
+#endif
   
   /* t1 = 2H */
   mpz_add (t1, H, H);

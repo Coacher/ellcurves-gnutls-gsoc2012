@@ -59,9 +59,9 @@ int main(void) {
 
     );
 
-    Rwmnaf = ecc_del_point();
-    Rclas = ecc_del_point();
-    G = ecc_del_point();
+    ecc_del_point(Rwmnaf);
+    ecc_del_point(Rclas);
+    ecc_del_point(G);
 
     mpz_clears(k, a, modulus, NULL);
 

@@ -1,3 +1,6 @@
+# old versions of files
+*.old
+
 # editor temp files
 *~
 .*.sw?
@@ -5,3 +8,19 @@
 \#*\#
 DEADJOE
 
+# executables, libs, other compiled stuff
+*.pyc
+*.pyo
+*.egg
+*.egg-info
+*.com
+*.dll
+*.class
+*.exe
+*.o
+*.so
+*.lo
+*.slo
+*.la
+*.a
+*.lai

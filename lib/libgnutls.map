@@ -840,8 +840,10 @@ GNUTLS_PRIVATE {
     # Internal symbols needed for wmnaf testing:
     ecc_mulmod;
     ecc_mulmod_wmnaf;
+    # Internal symbols needed for add_point_ng testing:
     ecc_projective_add_point;
     ecc_projective_add_point_ng;
+    ecc_map;
   local:
     *;
 };

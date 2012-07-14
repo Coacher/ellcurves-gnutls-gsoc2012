@@ -179,17 +179,17 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
   /* t0 = (r)^2 */
   mpz_mul (t0, r, r);
   mpz_mod (t0, t0, modulus);
-  /* t1 = 2V */
-  mpz_add (t1, V, V);
-  if (mpz_cmp (t1, modulus) >= 0)
-    {
-      mpz_sub (t1, t1, modulus);
-    }
   /* t0 = t0 - J */
   mpz_sub (t0, t0, J);
   if (mpz_cmp_ui (t0, 0) < 0)
     {
       mpz_add (t0, t0, modulus);
+    }
+  /* t1 = 2V */
+  mpz_add (t1, V, V);
+  if (mpz_cmp (t1, modulus) >= 0)
+    {
+      mpz_sub (t1, t1, modulus);
     }
   /* X = r^2 - J - 2V = t0 - t1 */
   mpz_sub (R->x, t0, t1);
@@ -246,8 +246,8 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
     {
       mpz_add (t1, t1, modulus);
     }
-  /* Z = ((Z1 + Z2)^2 - Z1Z1 - Z2Z2)*H = t0*H */ 
-  mpz_mul (R->z, t0, H);
+  /* Z = ((Z1 + Z2)^2 - Z1Z1 - Z2Z2)*H = t1 * H */ 
+  mpz_mul (R->z, t1, H);
   mpz_mod (R->z, R->z, modulus);
 
   err = 0;

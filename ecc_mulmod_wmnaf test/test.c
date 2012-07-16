@@ -6,13 +6,13 @@
 #include "ecc.c"
 #include "my_ecc.h"
 
-#define NUM_OF_TRIES 5
+#define NUM_OF_TRIES 10
 
 int main(void) {
     mpz_t k, a, modulus;
     ecc_point *G, *Rclas, *Rwmnaf;
     int map = 1;
-    
+
     int rand, i;
 
     clock_t start;
@@ -52,7 +52,7 @@ int main(void) {
 
             check = (!mpz_cmp(Rwmnaf->x, Rclas->x)) && (!mpz_cmp(Rwmnaf->y, Rclas->y));
 
-            printf("Check: %i; Classic time: %.15f; wMNAF time: %.15f\n", check, classic_time, wmnaf_time);
+            printf("Classic time: %.15f; wMNAF time: %.15f; Check: %i\n", classic_time, wmnaf_time, check);
         }
 
         printf("\n");

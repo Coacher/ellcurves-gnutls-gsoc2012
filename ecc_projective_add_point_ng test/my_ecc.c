@@ -4,7 +4,7 @@
 
 #include "my_ecc.h"
 
-/* copied from lib/nettle to make things behave */
+/* copied from lib/nettle */
 int mp_init_multi(mpz_t *a, ...)
 {
    mpz_t    *cur = a;
@@ -70,4 +70,3 @@ ecc_del_point (ecc_point * p)
 }
 
 /* end of copied */
- 

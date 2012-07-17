@@ -43,6 +43,8 @@ int
 ecc_projective_dbl_point (ecc_point * P, ecc_point * R, mpz_t a /* a is -3 */,
                               mpz_t modulus)
 {
+   /* Using "dbl-1986-cc-2" algorithm.
+    * It costs 4M + 4S + half. */
    mpz_t t1, t2;
    int   err;
 
@@ -61,16 +63,25 @@ ecc_projective_dbl_point (ecc_point * P, ecc_point * R, mpz_t a /* a is -3 */,
        mpz_set(R->z, P->z);
      }
 
-     /* t1 = Z * Z */
-     mpz_mul(t1, R->z, R->z);
-     mpz_mod(t1, t1, modulus);
-     /* Z = Y * Z */
-     mpz_mul(R->z, R->y, R->z);
-     mpz_mod(R->z, R->z, modulus);
-     /* Z = 2Z */
-     mpz_add(R->z, R->z, R->z);
-     if (mpz_cmp(R->z, modulus) >= 0) {
-        mpz_sub(R->z, R->z, modulus);
+     if (mpz_cmp_ui (P->z, 1) != 0) {
+         /* t1 = Z * Z */
+         mpz_mul(t1, R->z, R->z);
+         mpz_mod(t1, t1, modulus);
+         /* Z = Y * Z */
+         mpz_mul(R->z, R->y, R->z);
+         mpz_mod(R->z, R->z, modulus);
+         /* Z = 2Z */
+         mpz_add(R->z, R->z, R->z);
+         if (mpz_cmp(R->z, modulus) >= 0) {
+            mpz_sub(R->z, R->z, modulus);
+         }
+     } else {
+         mpz_set_ui(t1, 1);
+         /* Z = 2Y */
+         mpz_add(R->z, R->y, R->y);
+         if (mpz_cmp(R->z, modulus) >= 0) {
+            mpz_sub(R->z, R->z, modulus);
+         }
      }
 
      /* T2 = X - T1 */
@@ -150,7 +161,7 @@ ecc_projective_dbl_point (ecc_point * P, ecc_point * R, mpz_t a /* a is -3 */,
      mp_clear_multi(&t1, &t2, NULL);
      return err;
    } else {
-     /* 2neutral = neutral */
+     /* 2*neutral = neutral */
      mpz_set_ui(R->x, 1);
      mpz_set_ui(R->y, 1);
      mpz_set_ui(R->z, 0);

@@ -76,7 +76,8 @@ ecc_projective_dbl_point (ecc_point * P, ecc_point * R, mpz_t a /* a is -3 */,
             mpz_sub(R->z, R->z, modulus);
          }
      } else {
-         mpz_set_ui(t1, 1);
+         /* t1 = 1 */
+         mpz_set(t1, P->z);
          /* Z = 2Y */
          mpz_add(R->z, R->y, R->y);
          if (mpz_cmp(R->z, modulus) >= 0) {

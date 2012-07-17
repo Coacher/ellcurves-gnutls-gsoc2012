@@ -27,8 +27,8 @@
  * In most of the cases below when H == 0 then Z == 0
  * and resulting point lies at infinity.
  *
- * And the only points with Z == 0 MUST be
- * neutral point.
+ * And the only point on the curve with Z == 0 MUST be
+ * the neutral point.
  *
  * Of course, if there wasn't a mistake somewhere before.
  * We will be gullible and won't do any checks and simply

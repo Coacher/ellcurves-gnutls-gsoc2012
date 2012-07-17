@@ -42,6 +42,8 @@ int
 ecc_projective_add_point (ecc_point * P, ecc_point * Q, ecc_point * R,
                               mpz_t a, mpz_t modulus)
 {
+  /* Using "add-1998-hnm" algorithm.
+   * It costs 12M + 4S + half. */
   mpz_t t1, t2, x, y, z;
   int err;
 

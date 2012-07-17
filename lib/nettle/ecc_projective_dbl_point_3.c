@@ -156,7 +156,7 @@ ecc_projective_dbl_point (ecc_point * P, ecc_point * R, mpz_t a /* a is -3 */,
      if (mpz_cmp_ui(R->y, 0) < 0) {
         mpz_add( R->y, R->y, modulus);
      }
- 
+
      err = 0;
 
      mp_clear_multi(&t1, &t2, NULL);

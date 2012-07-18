@@ -72,7 +72,7 @@ ecc_projective_isneutral (ecc_point * P, mpz_t modulus)
           goto done;
       }
      
-      err = 0
+      err = 0;
       goto done;
   }
 done:

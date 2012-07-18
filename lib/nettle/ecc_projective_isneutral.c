@@ -59,7 +59,7 @@ ecc_projective_isneutral (ecc_point * P, mpz_t modulus)
   mpz_mul (t2, P->y, P->y);
   mpz_mod (t2, t2, modulus);
 
-  if ( (!mpz_cmp(t1, t2)) && (mpz_cmp_ui(P->x, 0)) ) {
+  if ( (!mpz_cmp(t1, t2)) && (mpz_sgn(P->x)) ) {
       /* Z == 0 and X^3 == Y^2 != 0
        * it is neutral */
       err = 0;

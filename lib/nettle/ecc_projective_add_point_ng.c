@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2011-2012 Free Software Foundation, Inc.
  *
- * This file is wannabe part of GNUTLS.
+ * This file is part of GNUTLS.
  *
  * The GNUTLS library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public License
@@ -20,6 +20,26 @@
 
 #include "ecc.h"
 
+/* We use a number of different algorithms for different special cases.
+ * See http://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian.html
+ *
+ * The algorithm used for general case is "add-1998-cmo-2"
+ * It costs 12M + 4S.
+ *
+ * If Z1 = Z2 we use "zadd-2007-m". It costs 5M + 2S.
+ * If Z1 = Z2 = 1 we use "mmadd-2007-bl". It costs 4M + 2S.
+ * If Z2 = 1 we use "madd". It costs 8M + 3S.
+ *
+ * The original versions use a lot of vars:
+ * Z1Z1, Z2Z2, U1, U2, S1, S2, H, I, HHH, r, V, etc.
+ * We use only the needed minimum:
+ * Z1Z1, Z2Z2, S1, H, HHH, r, V.
+ * The rest of the vars are not needed for final
+ * computation, so we calculate them, but don't store.
+ * Follow the comments.
+ */
+
+
 #define __WITH_EXTENDED_CHECKS
 /* Check if H == 0
  * In this case P + Q = neutral element.
@@ -35,6 +55,7 @@
  * return neutral point in that case.
  */
 
+
 /*
    Add two ECC points
    @param P        The point to add
@@ -48,32 +69,13 @@ int
 ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
                               mpz_t a, mpz_t modulus)
 {
-    /* We use a number of different algorithms for different special cases.
-     * See http://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian.html
-     *
-     * The algorithm used for general case is "add-1998-cmo-2"
-     * It costs 12M + 4S.
-     *
-     * If Z1 = Z2 we use "zadd-2007-m". It costs 5M + 2S.
-     * If Z1 = Z2 = 1 we use "mmadd-2007-bl". It costs 4M + 2S.
-     * If Z2 = 1 we use "madd". It costs 8M + 3S.
-     *
-     * The original version uses a lot of vars:
-     * Z1Z1, Z2Z2, U1, U2, S1, S2, H, I, HHH, r, V, etc.
-     * We use only vars needed for final computation:
-     * S1, H, HHH, r, V, etc.
-     * The rest of the vars are not needed for final
-     * computation, so we calculate them, but don't store.
-     * Follow the comments.
-     */
-
     mpz_t t0, t1, Z1Z1, Z2Z2, S1, H, HHH, r, V;
     int err;
 
     if (P == NULL || Q == NULL || R == NULL || modulus == NULL)
         return -1;
 
-    /* check all special cases */
+    /* check all special cases first */
 
     /* check for neutral points */
     if (!ecc_projective_isneutral(Q)) {
@@ -129,6 +131,7 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
          * check if additionally Z1 == Z2 == 1
          * and do "mmadd-2007-bl" in that case */
         if ((mpz_cmp_ui(Q->z, 1) == 0)) {
+            /* Z1 == Z2 == 1 do "mmadd-2007-bl" */
 
             /* H = X2 - X1 */
             mpz_sub (H, Q->x, P->x);
@@ -176,7 +179,7 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
                 mpz_sub (r, r, modulus);
 
             /* we've calculated all needed vars:
-             * H, HHH, r, V
+             * H, J, r, V
              * now, we will calculate the coordinates */
 
             /* t0 = (r)^2 */
@@ -219,13 +222,12 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
             /* Z = 2H */
             mpz_set (R->z, S1);
 
-            err = 0;
-
             mp_clear_multi (&Z1Z1, &Z2Z2, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
-            return err;
+
+            return 0;
         } else {
             /* P != Q and P != -Q and
-             * Z1 and Z2 !== 1 together, but still Z1 == Z2
+             * Z1 and Z2 != 1 together, but still Z1 == Z2
              * do "zadd-2007-m" in that case */
 
             /* H = X2 - X1 */
@@ -271,7 +273,7 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
             mpz_mod (t1, t1, modulus);
 
             /* we've calculated all needed vars:
-             * HHH, t0, t1, V (formerly A, B, C, D)
+             * HHH, t0, t1, V (consequently A, B, C, D)
              * now, we will calculate the coordinates */
 
             /* X = D - B */
@@ -308,16 +310,15 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
             mpz_mul (R->z, P->z, H);
             mpz_mod (R->z, R->z, modulus);
 
-            err = 0;
-
             mp_clear_multi (&Z1Z1, &Z2Z2, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
-            return err;
+
+            return 0;
         }
 
     /* Z1 != Z2; check if Z2 == 1
      * do "madd" in that case */
     } else if ((mpz_cmp_ui(Q->z, 1) == 0)) {
-        /* Z2 == 1 */
+        /* Z2 == 1 do "madd" */
 
         /* Z1Z1 = Z1 * Z1 */
         mpz_mul (Z1Z1, P->z, P->z);
@@ -381,7 +382,7 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
             mpz_sub (r, r, modulus);
 
         /* we've calculated all needed vars:
-         * H, HHH, r, V
+         * H, J, r, V
          * now, we will calculate the coordinates */
 
         /* t0 = (r)^2 */
@@ -425,10 +426,9 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
         mpz_mul (R->z, P->z, S1);
         mpz_mod (R->z, R->z, modulus);
 
-        err = 0;
-
         mp_clear_multi (&Z1Z1, &Z2Z2, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
-        return err;
+
+        return 0;
     }
 
     /* no special cases occured 
@@ -547,8 +547,7 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
     mpz_mul (R->z, t1, H);
     mpz_mod (R->z, R->z, modulus);
 
-    err = 0;
-
     mp_clear_multi (&Z1Z1, &Z2Z2, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
-    return err;
+
+    return 0;
 }

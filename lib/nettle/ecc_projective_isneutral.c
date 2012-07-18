@@ -30,18 +30,17 @@
 int
 ecc_projective_isneutral (ecc_point * P)
 {
-
   if (P == NULL)
     return -1;
 
   /* neutral point is a point with projective
    * coordinates (k,k,0) where k is any real number
-   * excluding (0,0,0) point
-   * */
-  if ( (mpz_cmp_si(P->z, 0)) || (mpz_cmp(P->x, P->y)) )
+   * excluding point (0,0,0)
+   */
+  if ( (mpz_cmp_ui(P->z, 0)) || (mpz_cmp(P->x, P->y)) )
     return 1;
 
-  if (!(mpz_cmp_si(P->x, 0)))
+  if (!(mpz_cmp_ui(P->x, 0)))
     /* we have excluded (0,0,0) point */
     return -1;
 

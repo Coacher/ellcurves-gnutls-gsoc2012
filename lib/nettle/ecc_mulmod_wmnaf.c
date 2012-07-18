@@ -25,10 +25,12 @@
     #define WINSIZE 4
 #endif
 
-/* length of (half)array of precomputed values for wMNAF */
-#define PRECOMPUTE_LENGTH_SMALL (1 << (WINSIZE - 1))
+/* length of one array of precomputed values for ecc_mulmod_wmnaf 
+ * we have two such arrays for positive and negative multipliers */
+#define PRECOMPUTE_LENGTH (1 << (WINSIZE - 1))
 
-/* returns wMNAF representation of given mpz_t number x */
+/* returns an array with wMNAF representation of given mpz_t number x
+ * together with length of the representation */
 static signed char* wMNAF(mpz_t x, int w, size_t *ret_len);
 
 /*
@@ -44,7 +46,7 @@ int
 ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
                 int map)
 {
-    ecc_point *tG, *pos[PRECOMPUTE_LENGTH_SMALL], *neg[PRECOMPUTE_LENGTH_SMALL];
+    ecc_point *pos[PRECOMPUTE_LENGTH], *neg[PRECOMPUTE_LENGTH];
     int        i, j, err;
 
     signed char* wmnaf = NULL;
@@ -55,7 +57,7 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
         return -1;
 
     /* alloc ram for precomputed values */
-    for (i = 0; i < PRECOMPUTE_LENGTH_SMALL; ++i) {
+    for (i = 0; i < PRECOMPUTE_LENGTH; ++i) {
         pos[i] = ecc_new_point();
         neg[i] = ecc_new_point();
         if (pos[i] == NULL || neg[i] == NULL) {
@@ -68,46 +70,34 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
         }
     }
 
-    /* make a copy of G in case R == G */
-    tG = ecc_new_point();
-    if (tG == NULL)
-    { 
-        err = -1;
-        goto done; 
-    }
-
-    /* tG = G */
-    mpz_set (tG->x, G->x);
-    mpz_set (tG->y, G->y);
-    mpz_set (tG->z, G->z);
-
-    /* 
-     * calculate the pos and neg arrays
-     * pos holds kG for k ==  1, 3, ..., (2^w - 1)
-     * neg holds kG for k == -1,-3, ...,-(2^w - 1)
+    /* fill in pos and neg arrays with precomputed values
+     * pos holds kG for k ==  1, 3, 5, ..., (2^w - 1)
+     * neg holds kG for k == -1,-3,-5, ...,-(2^w - 1)
      */
 
     /* pos[0] == 2G for a while, later it will be set to the expected 1G */
-    if ((err = ecc_projective_dbl_point(tG, pos[0], a, modulus)) != 0)
+    if ((err = ecc_projective_dbl_point(G, pos[0], a, modulus)) != 0)
         goto done;
    
     /* pos[1] == 3G */
-    if ((err = ecc_projective_add_point(pos[0], tG, pos[1], a, modulus)) != 0)
+    if ((err = ecc_projective_add_point(pos[0], G, pos[1], a, modulus)) != 0)
         goto done;
 
-    /* find kG for k = 5,7, ..., (2^w - 1) */
-    for (j = 2; j < PRECOMPUTE_LENGTH_SMALL; ++j) {
+    /* fill in kG for k = 5, 7, ..., (2^w - 1) */
+    for (j = 2; j < PRECOMPUTE_LENGTH; ++j) {
         if ((err = ecc_projective_add_point(pos[j-1], pos[0], pos[j], a, modulus)) != 0)
            goto done;
     }
    
-    /* set pos[0] == 1G as expected */
-    mpz_set (pos[0]->x, tG->x);
-    mpz_set (pos[0]->y, tG->y);
-    mpz_set (pos[0]->z, tG->z);
+    /* set pos[0] == 1G as expected
+     * after this step we don't need G at all 
+     * and can change it without worries even if R == G */
+    mpz_set (pos[0]->x, G->x);
+    mpz_set (pos[0]->y, G->y);
+    mpz_set (pos[0]->z, G->z);
 
     /* neg[i] == -pos[i] */
-    for (j = 0; j < PRECOMPUTE_LENGTH_SMALL; ++j) {
+    for (j = 0; j < PRECOMPUTE_LENGTH; ++j) {
         if ((err = ecc_projective_negate_point(pos[j], neg[j], modulus)) != 0)
             goto done;
     }
@@ -152,8 +142,7 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
         err = 0;
     }
 done:
-    ecc_del_point(tG);
-    for (i = 0; i < PRECOMPUTE_LENGTH_SMALL; ++i) {
+    for (i = 0; i < PRECOMPUTE_LENGTH; ++i) {
         ecc_del_point(pos[i]);
         ecc_del_point(neg[i]);
     }
@@ -163,8 +152,13 @@ done:
 
 
 /* 
- * Return array with wMNAF representation of given mpz_t number x.
- * based on OpenSSL version of this function.
+ * Return an array with wMNAF representation of given mpz_t number x
+ * together with representation length.
+ * The result is the array with elements from set {0, +-1, +-3, +-5, ..., +-(2^w - 1)}
+ * such that at most one of any (w + 1) consecutive digits is non-zero
+ * with exception for the the most significant (w+1) bits.
+ * With the last property it is modified version of wNAF.
+ * Based on OpenSSL version of this function.
  * overview of this algorithm can be found in
  * Bodo Moller, Improved Techniques for Fast Exponentiation.
  * Information Security and Cryptology – ICISC 2002, Springer-Verlag LNCS 2587, pp. 298–312
@@ -176,7 +170,7 @@ static signed char* wMNAF(mpz_t x, int w, size_t *ret_len) {
     int bit, next_bit, mask;
     size_t len = 0, j;
     
-    if ( !(sign = mpz_sgn(x)) ) {
+    if (!(sign = mpz_sgn(x))) {
         /* x == 0 */
         ret = malloc(1);
         if (!ret) {

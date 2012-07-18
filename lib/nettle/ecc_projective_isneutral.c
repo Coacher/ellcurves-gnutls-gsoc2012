@@ -41,42 +41,36 @@ ecc_projective_isneutral (ecc_point * P, mpz_t modulus)
    * coordinates (x,y,0) such that y^2 == x^3
    * excluding point (0,0,0)
    */
-  if (!(mpz_cmp_ui(P->z, 0))) {
-      /* Z == 0 */
-  
-      if ((err = mp_init_multi (&t1, &t2, NULL)) != 0)
-      {
-        return -1;
-      }
+  if (mpz_sgn(P->z))
+      /* Z != 0 */
+      return 1;
 
-      /* t1 == x^3 */
-      mpz_mul (t1, P->x, P->x);
-      mpz_mod (t1, t1, modulus);
-      mpz_mul (t1, t1, P->x);
-      mpz_mod (t1, t1, modulus);
-      /* t2 == y^2 */
-      mpz_mul (t2, P->y, P->y);
-      mpz_mod (t2, t2, modulus);
+  if ((err = mp_init_multi (&t1, &t2, NULL)) != 0)
+  {
+    return -1;
+  }
 
-      if (mpz_cmp(t1, t2)) {
-          /* Z == 0, but X^3 != Y^2
-           * this should never happen */
-          err = -1;
-          goto done;
-      }
+  /* t1 == x^3 */
+  mpz_mul (t1, P->x, P->x);
+  mpz_mod (t1, t1, modulus);
+  mpz_mul (t1, t1, P->x);
+  mpz_mod (t1, t1, modulus);
+  /* t2 == y^2 */
+  mpz_mul (t2, P->y, P->y);
+  mpz_mod (t2, t2, modulus);
 
-      if (mpz_cmp_ui(t1, 0)) {
-          /* Z == X^3 == Y^2 == 0
-           * this should never happen */
-          err = -1;
-          goto done;
-      }
-     
+  if ( (!mpz_cmp(t1, t2)) && (mpz_cmp_ui(P->x, 0)) ) {
+      /* Z == 0 and X^3 == Y^2 != 0
+       * it is neutral */
       err = 0;
       goto done;
   }
 
-  return 1;
+  /* Z == 0 and X^3 != Y^2 or
+   * Z == X == Y == 0
+   * this should never happen */
+  err = -1;
+  goto done;
 done:
   mp_clear_multi (&t1, &t2, NULL);
   return err;

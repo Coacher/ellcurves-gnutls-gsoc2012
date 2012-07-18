@@ -80,7 +80,7 @@ ecc_projective_add_point (ecc_point * P, ecc_point * Q, ecc_point * R,
         }
     }
   
-  if (!ecc_projective_isneutral(Q)) {
+  if (!ecc_projective_isneutral(Q, modulus)) {
     /* P + Q = P + neutral = P */
 
     mpz_set (R->x, P->x);
@@ -90,7 +90,7 @@ ecc_projective_add_point (ecc_point * P, ecc_point * Q, ecc_point * R,
     return 0;
   }
   
-  if (!ecc_projective_isneutral(P)) {
+  if (!ecc_projective_isneutral(P, modulus)) {
     /* P + Q = neutral + Q = Q */
 
     mpz_set (R->x, Q->x);

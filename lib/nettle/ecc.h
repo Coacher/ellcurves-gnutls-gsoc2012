@@ -139,7 +139,7 @@ int ecc_mulmod_timing(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulu
 int ecc_mulmod_wmnaf(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int map);
 
 /* check if the given point is neutral point */
-int ecc_projective_isneutral(ecc_point *P);
+int ecc_projective_isneutral(ecc_point *P, mpz_t modulus);
 
 /* map P to affine from projective */
 int ecc_map(ecc_point *P, mpz_t modulus);

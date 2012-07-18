@@ -23,26 +23,59 @@
 /*
    Check if the given point is the neutral point.
    @param P        The point to check
+   @param modulus  The modulus of the field the ECC curve is in
    @return  0 if given point == neutral point
    @return  1 if given point != neutral point
    @return -1 otherwise
 */
 int
-ecc_projective_isneutral (ecc_point * P)
+ecc_projective_isneutral (ecc_point * P, mpz_t modulus)
 {
   if (P == NULL)
     return -1;
 
+  mpz_t t1, t2;
+  int err;
+
   /* neutral point is a point with projective
-   * coordinates (k,k,0) where k is any real number
+   * coordinates (x,y,0) such that y^2 == x^3
    * excluding point (0,0,0)
    */
-  if ( (mpz_cmp_ui(P->z, 0)) || (mpz_cmp(P->x, P->y)) )
-    return 1;
+  if (!(mpz_cmp_ui(P->z, 0))) {
+      /* Z == 0 */
+  
+      if ((err = mp_init_multi (&t1, &t2, NULL)) != 0)
+      {
+        return -1;
+      }
 
-  if (!(mpz_cmp_ui(P->x, 0)))
-    /* we have excluded (0,0,0) point */
-    return -1;
+      /* t1 == x^3 */
+      mpz_mul (t1, P->x, P->x);
+      mpz_mod (t1, t1, modulus);
+      mpz_mul (t1, t1, P->x);
+      mpz_mod (t1, t1, modulus);
+      /* t2 == y^2 */
+      mpz_mul (t2, P->y, P->y);
+      mpz_mod (t2, t2, modulus);
 
-  return 0;
+      if (mpz_cmp(t1, t2)) {
+          /* Z == 0, but X^3 != Y^2
+           * this should never happen */
+          err = -1;
+          goto done;
+      }
+
+      if (mpz_cmp(t1, 0)) {
+          /* Z == X^3 == Y^2 == 0
+           * this should never happen */
+          err = -1;
+          goto done;
+      }
+     
+      err = 0
+      goto done;
+  }
+done:
+  mp_clear_multi (&t1, &t2, NULL);
+  return err;
 }

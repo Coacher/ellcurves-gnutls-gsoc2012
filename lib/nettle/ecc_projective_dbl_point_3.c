@@ -51,7 +51,7 @@ ecc_projective_dbl_point (ecc_point * P, ecc_point * R, mpz_t a /* a is -3 */,
    if (P == NULL || R == NULL || modulus == NULL)
      return -1;
 
-   if (ecc_projective_isneutral(P)) {
+   if (ecc_projective_isneutral(P, modulus)) {
 
      if ((err = mp_init_multi(&t1, &t2, NULL)) != 0) {
         return err;

@@ -65,7 +65,7 @@ ecc_projective_isneutral (ecc_point * P, mpz_t modulus)
           goto done;
       }
 
-      if (mpz_cmp(t1, 0)) {
+      if (mpz_cmp_ui(t1, 0)) {
           /* Z == X^3 == Y^2 == 0
            * this should never happen */
           err = -1;
@@ -75,6 +75,8 @@ ecc_projective_isneutral (ecc_point * P, mpz_t modulus)
       err = 0;
       goto done;
   }
+
+  return 1;
 done:
   mp_clear_multi (&t1, &t2, NULL);
   return err;

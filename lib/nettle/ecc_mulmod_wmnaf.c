@@ -80,12 +80,12 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
         goto done;
    
     /* pos[1] == 3G */
-    if ((err = ecc_projective_add_point(pos[0], G, pos[1], a, modulus)) != 0)
+    if ((err = ecc_projective_add_point_ng(pos[0], G, pos[1], a, modulus)) != 0)
         goto done;
 
     /* fill in kG for k = 5, 7, ..., (2^w - 1) */
     for (j = 2; j < PRECOMPUTE_LENGTH; ++j) {
-        if ((err = ecc_projective_add_point(pos[j-1], pos[0], pos[j], a, modulus)) != 0)
+        if ((err = ecc_projective_add_point_ng(pos[j-1], pos[0], pos[j], a, modulus)) != 0)
            goto done;
     }
    
@@ -125,10 +125,10 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
 
         if (digit) {
             if (digit > 0) {
-                if ((err = ecc_projective_add_point(R, pos[( digit / 2)], R, a, modulus)) != 0)
+                if ((err = ecc_projective_add_point_ng(R, pos[( digit / 2)], R, a, modulus)) != 0)
                     goto done;
             } else {
-                if ((err = ecc_projective_add_point(R, neg[(-digit / 2)], R, a, modulus)) != 0)
+                if ((err = ecc_projective_add_point_ng(R, neg[(-digit / 2)], R, a, modulus)) != 0)
                     goto done;
             }
         }

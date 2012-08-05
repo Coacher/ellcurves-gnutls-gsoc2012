@@ -844,6 +844,10 @@ GNUTLS_PRIVATE {
     ecc_projective_add_point;
     ecc_projective_add_point_ng;
     ecc_map;
+    # Internal symbols needed for caching testing:
+    ecc_precomp_init;
+    ecc_precomp_free;
+    ecc_precomp_mulmod_wmnaf;
   local:
     *;
 };

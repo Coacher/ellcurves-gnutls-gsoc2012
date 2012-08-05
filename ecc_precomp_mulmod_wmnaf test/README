@@ -1,4 +1,4 @@
-`test.c` file contains a test utility of ecc_mulmod_wmnaf() function.
+`test.c` file contains a test utility of ecc_precomp_mulmod_wmnaf() function.
 
 It requires GMP to work and should be compiled with `-lgmp` flag.
 

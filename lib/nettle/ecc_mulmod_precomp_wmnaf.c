@@ -28,7 +28,9 @@
 
 /* length of one array of precomputed values for ecc_mulmod_wmnaf 
  * we have two such arrays for positive and negative multipliers */
-#define PRECOMPUTE_LENGTH (1 << (WINSIZE - 1))
+#ifndef PRECOMPUTE_LENGTH
+    #define PRECOMPUTE_LENGTH (1 << (WINSIZE - 1))
+#endif
 
 /* arrays with precomputed values of generator point */
 static ecc_point *precomp_pos[PRECOMPUTE_LENGTH], *precomp_neg[PRECOMPUTE_LENGTH];

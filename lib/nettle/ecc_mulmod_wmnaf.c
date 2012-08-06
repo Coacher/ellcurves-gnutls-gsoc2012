@@ -19,7 +19,6 @@
  */
 
 #include "ecc.h"
-#include "wmnaf.c"
 
 /* size of sliding window, don't change this! */
 #ifndef WINSIZE
@@ -28,7 +27,9 @@
 
 /* length of one array of precomputed values for ecc_mulmod_wmnaf 
  * we have two such arrays for positive and negative multipliers */
-#define PRECOMPUTE_LENGTH (1 << (WINSIZE - 1))
+#ifndef PRECOMPUTE_LENGTH
+    #define PRECOMPUTE_LENGTH (1 << (WINSIZE - 1))
+#endif
 
 /*
    Perform a point multiplication using wMNAF repr.

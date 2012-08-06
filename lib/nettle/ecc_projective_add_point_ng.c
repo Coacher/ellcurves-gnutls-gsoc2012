@@ -357,3 +357,183 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
 
     return 0;
 }
+
+/*
+   Add two ECC points, when it is known that Z2 == 1
+   @param P        The point to add
+   @param Q        The point with Z == 1 to add
+   @param R        [out] The destination of the double
+   @param a        Curve's a value
+   @param modulus  The modulus of the field the ECC curve is in
+   @return 0 on success
+*/
+int
+ecc_projective_madd_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
+                              mpz_t a, mpz_t modulus)
+{
+    mpz_t t0, t1, Z1Z1, S1, H, HHH, r, V;
+    int err;
+
+    if (P == NULL || Q == NULL || R == NULL || modulus == NULL)
+        return -1;
+
+    /* check all special cases first */
+
+    /* check for neutral points */
+    if (!ecc_projective_isneutral(Q, modulus)) {
+        /* P + Q = P + neutral = P */
+
+        mpz_set (R->x, P->x);
+        mpz_set (R->y, P->y);
+        mpz_set (R->z, P->z);
+
+        return 0;
+    }
+
+    if (!ecc_projective_isneutral(P, modulus)) {
+        /* P + Q = neutral + Q = Q */
+
+        mpz_set (R->x, Q->x);
+        mpz_set (R->y, Q->y);
+        mpz_set (R->z, Q->z);
+
+        return 0;
+    }
+
+    if ((err = mp_init_multi (&Z1Z1, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL)) != 0 )
+        return err;
+
+    /* Check if P == Q and do doubling in that case 
+     * If Q == -P then P + Q = neutral element */
+    if ((mpz_cmp (P->x, Q->x) == 0) &&
+        (mpz_cmp (P->z, Q->z) == 0)) {
+
+        /* x and z coordinates match.
+         * Check if P->y = Q->y, or P->y = -Q->y */
+
+        if (mpz_cmp (P->y, Q->y) == 0) {
+            mp_clear_multi (&Z1Z1, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
+            return ecc_projective_dbl_point (P, R, a, modulus);
+        }
+
+        mpz_sub (t1, modulus, Q->y);
+        if (mpz_cmp (P->y, t1) == 0) {
+            mp_clear_multi (&Z1Z1, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
+            mpz_set_ui(R->x, 1);
+            mpz_set_ui(R->y, 1);
+            mpz_set_ui(R->z, 0);
+            return 0;
+        }
+    }
+
+
+    /* Z1Z1 = Z1 * Z1 */
+    mpz_mul (Z1Z1, P->z, P->z);
+    mpz_mod (Z1Z1, Z1Z1, modulus);
+
+    /* t1 = X2 * Z1Z1 */
+    /* it is the original U2 */
+    mpz_mul (t1, Z1Z1, Q->x);
+    mpz_mod (t1, t1, modulus);
+    /* H = U2 - X1  = t1 - X1 */
+    mpz_sub (H, t1, P->x);
+#ifdef __WITH_EXTENDED_CHECKS
+    err = mpz_cmp_ui (H, 0);
+    if (err < 0) {
+        mpz_add (H, H, modulus);
+    } else if (!err) {
+        mpz_set_ui (R->x, 1);
+        mpz_set_ui (R->y, 1);
+        mpz_set_ui (R->z, 0);
+        mp_clear_multi (&Z1Z1, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
+
+        return 0;
+    }
+#else
+    if (mpz_cmp_ui (H, 0) < 0)
+        mpz_add (H, H, modulus);
+#endif
+    /* S1 = 2H */
+    mpz_add (S1, H, H);
+    if (mpz_cmp (S1, modulus) >= 0)
+        mpz_sub (S1, S1, modulus);
+    /* t1 = (2H)^2 */
+    /* it is the original I */
+    mpz_mul (t1, S1, S1);
+    mpz_mod (t1, t1, modulus);
+
+    /* HHH = H * I = H * t1 */
+    /* it is the original J */
+    mpz_mul (HHH, H, t1);
+    mpz_mod (HHH, HHH, modulus);
+
+    /* V = X1 * I = X1 * t1 */
+    mpz_mul (V, P->x, t1);
+    mpz_mod (V, V, modulus);
+
+    /* t1 = Z1 * Z1Z1 */
+    mpz_mul (t1, Z1Z1, P->z);
+    mpz_mod (t1, t1, modulus);
+    /* t0 = Y2 * Z1 * Z1Z1 */
+    /* it is the original S2 */
+    mpz_mul (t0, t1, Q->y);
+    mpz_mod (t0, t0, modulus);
+
+    /* t0 = S2 - Y1 = t0 - Y1 */
+    mpz_sub (t0, t0, P->y);
+    if (mpz_cmp_ui (t0, 0) < 0)
+        mpz_add (t0, t0, modulus);
+    /* r = 2*(S2 - Y1) */
+    mpz_add (r, t0, t0);
+    if (mpz_cmp (r, modulus) >= 0)
+        mpz_sub (r, r, modulus);
+
+    /* we've calculated all needed vars:
+     * H, J, r, V
+     * now, we will calculate the coordinates */
+
+    /* t0 = (r)^2 */
+    mpz_mul (t0, r, r);
+    mpz_mod (t0, t0, modulus);
+    /* t0 = t0 - HHH */
+    mpz_sub (t0, t0, HHH);
+    if (mpz_cmp_ui (t0, 0) < 0)
+        mpz_add (t0, t0, modulus);
+    /* t1 = 2V */
+    mpz_add (t1, V, V);
+    if (mpz_cmp (t1, modulus) >= 0)
+        mpz_sub (t1, t1, modulus);
+    /* X = r^2 - J - 2V = t0 - t1 */
+    mpz_sub (R->x, t0, t1);
+    if (mpz_cmp_ui (R->x, 0) < 0)
+        mpz_add (R->x, R->x, modulus);
+
+
+    /* t1 = V - X */
+    mpz_sub (t1, V, R->x);
+    if (mpz_cmp_ui (t1, 0) < 0)
+        mpz_add (t1, t1, modulus);
+    /* t0 = r * t1 */
+    mpz_mul (t0, r, t1);
+    mpz_mod (t0, t0, modulus);
+    /* t1 = Y1 * HHH */
+    mpz_mul (t1, P->y, HHH);
+    mpz_mod (t1, t1, modulus);
+    /* t1 = 2t1 */
+    mpz_add (t1, t1, t1);
+    if (mpz_cmp (t1, modulus) >= 0)
+        mpz_sub (t1, t1, modulus);
+    /* Y = r*(V - X) - 2*Y1*J = t0 - t1 */
+    mpz_sub (R->y, t0, t1);
+    if (mpz_cmp_ui (R->y, 0) < 0)
+        mpz_add (R->y, R->y, modulus);
+
+
+    /* Z = 2*Z1*H = Z1*S1 */
+    mpz_mul (R->z, P->z, S1);
+    mpz_mod (R->z, R->z, modulus);
+
+    mp_clear_multi (&Z1Z1, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
+
+    return 0;
+}

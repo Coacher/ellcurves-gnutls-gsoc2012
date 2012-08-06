@@ -19,21 +19,29 @@
  */
 
 #include "ecc.h"
-#include "wmnaf.c"
 
 /* size of sliding window, don't change this! */
 #ifndef WINSIZE
     #define WINSIZE 4
 #endif
 
-/* length of one array of precomputed values for ecc_mulmod_wmnaf 
+/* length of one array of precomputed values
  * we have two such arrays for positive and negative multipliers */
 #ifndef PRECOMPUTE_LENGTH
     #define PRECOMPUTE_LENGTH (1 << (WINSIZE - 1))
 #endif
 
-/* arrays with precomputed values of generator point */
-static ecc_point *precomp_pos[PRECOMPUTE_LENGTH], *precomp_neg[PRECOMPUTE_LENGTH];
+/* initialize caches for all available curves */
+int ecc_precomp_init(void) {
+
+
+
+
+
+
+
+
+
 
 /* do precompute */
 int ecc_precomp_init(ecc_point * G, mpz_t a, mpz_t modulus) {

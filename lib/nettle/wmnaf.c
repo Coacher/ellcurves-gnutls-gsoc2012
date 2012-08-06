@@ -1,5 +1,10 @@
 #ifndef __WMNAF_REPR
 #define __WMNAF_REPR
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <gmp.h>
+
 /* 
  * Return an array with wMNAF representation of given mpz_t number x
  * together with representation length.
@@ -13,7 +18,7 @@
  * Information Security and Cryptology – ICISC 2002, Springer-Verlag LNCS 2587, pp. 298–312
  */
 
-static signed char* wMNAF(mpz_t x, int w, size_t *ret_len) {
+signed char* wMNAF(mpz_t x, int w, size_t *ret_len) {
     int window_val;
     signed char *ret = NULL;
     int sign = 1;

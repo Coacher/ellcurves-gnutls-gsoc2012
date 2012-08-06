@@ -8,14 +8,14 @@
 
 #define NUM_OF_TRIES 10
 
-#define TEST_ROUTINE(RESULT)                                      \
+#define TEST_ROUTINE(RESULT, FUNC)                                \
 do {                                                              \
     start = clock();                                              \
-    ecc_projective_add_point(R2, R1, Raddclas, a, modulus);       \
+    ecc_projective_add_point(R1, R2, Raddclas, a, modulus);       \
     classic_time = ((double) (clock() - start)) / CLOCKS_PER_SEC; \
     ecc_map(Raddclas, modulus);                                   \
     start = clock();                                              \
-    ecc_projective_add_point_ng(R2, R1, RESULT, a, modulus);      \
+    FUNC(R1, R2, RESULT, a, modulus);                             \
     ng_time = ((double) (clock() - start)) / CLOCKS_PER_SEC;      \
     ecc_map(RESULT, modulus);                                     \
     check = (!mpz_cmp(Raddclas->x, RESULT->x)) && (!mpz_cmp(Raddclas->y, RESULT->y));             \
@@ -66,29 +66,29 @@ int main(void) {
             
             mpz_set_ui(k, rand2);
             ecc_mulmod_wmnaf(k, G, R2, a, modulus, map);
-            
+/*            
             printf("  Testing special case Z1 == Z2 == 1\n");
             ecc_map(R1, modulus);
             ecc_map(R2, modulus);
             TEST_ROUTINE(Raddng_Zs_equal_one);
-
+*/
             printf("  Testing special case Z1 != 1, Z2 == 1\n");
             mpz_mul_ui(R1->z, R1->z, rand1);
             mpz_mul_ui(R1->x, R1->x, rand1*rand1);
             mpz_mul_ui(R1->y, R1->y, rand1*rand1*rand1);
-            TEST_ROUTINE(Raddng_Z2_is_one);
-
+            TEST_ROUTINE(Raddng_Z2_is_one, ecc_projective_madd);
+/*
             printf("  Testing special case Z1 == Z2 != 1\n");
             mpz_mul_ui(R2->z, R2->z, rand1);
             mpz_mul_ui(R2->x, R2->x, rand1*rand1);
             mpz_mul_ui(R2->y, R2->y, rand1*rand1*rand1);
             TEST_ROUTINE(Raddng_Zs_equal);
-
+*/
             printf("  Testing general case\n");
             mpz_mul_ui(R1->z, R1->z, rand2);
             mpz_mul_ui(R1->x, R1->x, rand2*rand2);
             mpz_mul_ui(R1->y, R1->y, rand2*rand2*rand2);
-            TEST_ROUTINE(Raddng_gen);
+            TEST_ROUTINE(Raddng_gen, ecc_projective_add_point_ng);
         }
 
         printf("\n");

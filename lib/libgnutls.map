@@ -843,6 +843,7 @@ GNUTLS_PRIVATE {
     # Internal symbols needed for add_point_ng testing:
     ecc_projective_add_point;
     ecc_projective_add_point_ng;
+    ecc_projective_madd;
     ecc_map;
     # Internal symbols needed for caching testing:
     ecc_precomp_init;

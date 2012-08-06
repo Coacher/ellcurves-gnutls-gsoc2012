@@ -368,7 +368,7 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
    @return 0 on success
 */
 int
-ecc_projective_madd_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
+ecc_projective_madd (ecc_point * P, ecc_point * Q, ecc_point * R,
                               mpz_t a, mpz_t modulus)
 {
     mpz_t t0, t1, Z1Z1, S1, H, HHH, r, V;

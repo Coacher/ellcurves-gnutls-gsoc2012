@@ -847,7 +847,7 @@ GNUTLS_PRIVATE {
     # Internal symbols needed for caching testing:
     ecc_precomp_init;
     ecc_precomp_free;
-    ecc_precomp_mulmod_wmnaf;
+    ecc_mulmod_precomp_wmnaf;
   local:
     *;
 };

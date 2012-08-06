@@ -49,7 +49,7 @@ int main(void) {
             classic_time = ((double) (clock() - start)) / CLOCKS_PER_SEC;
 
             start = clock();
-            ecc_precomp_mulmod_wmnaf(k, Rprecomp, a, modulus, map);
+            ecc_mulmod_precomp_wmnaf(k, Rprecomp, a, modulus, map);
             precomp_time = ((double) (clock() - start)) / CLOCKS_PER_SEC;
 
             check = (!mpz_cmp(Rprecomp->x, Rclas->x)) && (!mpz_cmp(Rprecomp->y, Rclas->y));

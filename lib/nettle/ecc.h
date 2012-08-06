@@ -132,10 +132,12 @@ int ecc_projective_dbl_point(ecc_point *P, ecc_point *R, mpz_t a,  mpz_t modulus
 /* R = P + Q */
 int ecc_projective_add_point(ecc_point *P, ecc_point *Q, ecc_point *R, mpz_t A, mpz_t modulus);
 int ecc_projective_add_point_ng(ecc_point *P, ecc_point *Q, ecc_point *R, mpz_t A, mpz_t modulus);
+int ecc_projective_madd (ecc_point* P, ecc_point* Q, ecc_point* R, mpz_t a, mpz_t modulus);
 
 /* R = kG */
 int ecc_mulmod(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int map);
 int ecc_mulmod_timing(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int map);
+signed char* ecc_wMNAF(mpz_t x, int w, size_t *ret_len);
 int ecc_mulmod_wmnaf(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int map);
 
 /* check if the given point is neutral point */

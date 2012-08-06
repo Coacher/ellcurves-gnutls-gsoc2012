@@ -31,11 +31,11 @@
 int
 ecc_projective_isneutral (ecc_point * P, mpz_t modulus)
 {
-  if (P == NULL)
-    return -1;
-
   mpz_t t1, t2;
   int err;
+
+  if (P == NULL)
+    return -1;
 
   /* neutral point is a point with projective
    * coordinates (x,y,0) such that y^2 == x^3

@@ -1,9 +1,8 @@
-#ifndef __WMNAF_REPR
-#define __WMNAF_REPR
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <gmp.h>
+
+#include "ecc.h"
 
 /* 
  * Return an array with wMNAF representation of given mpz_t number x
@@ -18,7 +17,7 @@
  * Information Security and Cryptology – ICISC 2002, Springer-Verlag LNCS 2587, pp. 298–312
  */
 
-signed char* wMNAF(mpz_t x, int w, size_t *ret_len) {
+signed char* ecc_wMNAF(mpz_t x, int w, size_t *ret_len) {
     int window_val;
     signed char *ret = NULL;
     int sign = 1;
@@ -102,4 +101,3 @@ signed char* wMNAF(mpz_t x, int w, size_t *ret_len) {
     *ret_len = j;
     return ret;
 }
-#endif

@@ -101,7 +101,7 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
     }
 
     /* calculate wMNAF */
-    wmnaf = wMNAF(k, WINSIZE, &wmnaf_len);
+    wmnaf = ecc_wMNAF(k, WINSIZE, &wmnaf_len);
     if (!wmnaf) {
         err = -2;
         goto done;

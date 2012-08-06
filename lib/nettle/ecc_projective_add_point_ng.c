@@ -125,7 +125,10 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
 
     /* check if Z2 == 1 and do "madd" in that case */
     if ((mpz_cmp_ui(Q->z, 1) == 0)) {
-
+        mp_clear_multi (&Z1Z1, &Z2Z2, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
+        return ecc_projective_madd (P, Q, R, a, modulus);
+    }
+#if 0    
         /* Z1Z1 = Z1 * Z1 */
         mpz_mul (Z1Z1, P->z, P->z);
         mpz_mod (Z1Z1, Z1Z1, modulus);
@@ -236,7 +239,7 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
 
         return 0;
     }
-
+#endif
     /* no special cases occured 
      * do general routine */
 
@@ -371,7 +374,7 @@ int
 ecc_projective_madd (ecc_point * P, ecc_point * Q, ecc_point * R,
                               mpz_t a, mpz_t modulus)
 {
-    mpz_t t0, t1, Z1Z1, S1, H, HHH, r, V;
+    mpz_t t0, t1, Z1Z1, S1, H, J, r, V;
     int err;
 
     if (P == NULL || Q == NULL || R == NULL || modulus == NULL)
@@ -380,16 +383,7 @@ ecc_projective_madd (ecc_point * P, ecc_point * Q, ecc_point * R,
     /* check all special cases first */
 
     /* check for neutral points */
-    if (!ecc_projective_isneutral(Q, modulus)) {
-        /* P + Q = P + neutral = P */
-
-        mpz_set (R->x, P->x);
-        mpz_set (R->y, P->y);
-        mpz_set (R->z, P->z);
-
-        return 0;
-    }
-
+    /* Q is guaranteed not to be neutral since it has Z == 1 */
     if (!ecc_projective_isneutral(P, modulus)) {
         /* P + Q = neutral + Q = Q */
 
@@ -400,7 +394,7 @@ ecc_projective_madd (ecc_point * P, ecc_point * Q, ecc_point * R,
         return 0;
     }
 
-    if ((err = mp_init_multi (&Z1Z1, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL)) != 0 )
+    if ((err = mp_init_multi (&Z1Z1, &S1, &H, &J, &r, &V, &t0, &t1, NULL)) != 0 )
         return err;
 
     /* Check if P == Q and do doubling in that case 
@@ -412,13 +406,13 @@ ecc_projective_madd (ecc_point * P, ecc_point * Q, ecc_point * R,
          * Check if P->y = Q->y, or P->y = -Q->y */
 
         if (mpz_cmp (P->y, Q->y) == 0) {
-            mp_clear_multi (&Z1Z1, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
+            mp_clear_multi (&Z1Z1, &S1, &H, &J, &r, &V, &t0, &t1, NULL);
             return ecc_projective_dbl_point (P, R, a, modulus);
         }
 
         mpz_sub (t1, modulus, Q->y);
         if (mpz_cmp (P->y, t1) == 0) {
-            mp_clear_multi (&Z1Z1, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
+            mp_clear_multi (&Z1Z1, &S1, &H, &J, &r, &V, &t0, &t1, NULL);
             mpz_set_ui(R->x, 1);
             mpz_set_ui(R->y, 1);
             mpz_set_ui(R->z, 0);
@@ -426,6 +420,8 @@ ecc_projective_madd (ecc_point * P, ecc_point * Q, ecc_point * R,
         }
     }
 
+    /* no special cases occured 
+     * do madd */
 
     /* Z1Z1 = Z1 * Z1 */
     mpz_mul (Z1Z1, P->z, P->z);
@@ -445,7 +441,7 @@ ecc_projective_madd (ecc_point * P, ecc_point * Q, ecc_point * R,
         mpz_set_ui (R->x, 1);
         mpz_set_ui (R->y, 1);
         mpz_set_ui (R->z, 0);
-        mp_clear_multi (&Z1Z1, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
+        mp_clear_multi (&Z1Z1, &S1, &H, &J, &r, &V, &t0, &t1, NULL);
 
         return 0;
     }
@@ -462,10 +458,9 @@ ecc_projective_madd (ecc_point * P, ecc_point * Q, ecc_point * R,
     mpz_mul (t1, S1, S1);
     mpz_mod (t1, t1, modulus);
 
-    /* HHH = H * I = H * t1 */
-    /* it is the original J */
-    mpz_mul (HHH, H, t1);
-    mpz_mod (HHH, HHH, modulus);
+    /* J = H * I = H * t1 */
+    mpz_mul (J, H, t1);
+    mpz_mod (J, J, modulus);
 
     /* V = X1 * I = X1 * t1 */
     mpz_mul (V, P->x, t1);
@@ -495,8 +490,8 @@ ecc_projective_madd (ecc_point * P, ecc_point * Q, ecc_point * R,
     /* t0 = (r)^2 */
     mpz_mul (t0, r, r);
     mpz_mod (t0, t0, modulus);
-    /* t0 = t0 - HHH */
-    mpz_sub (t0, t0, HHH);
+    /* t0 = t0 - J */
+    mpz_sub (t0, t0, J);
     if (mpz_cmp_ui (t0, 0) < 0)
         mpz_add (t0, t0, modulus);
     /* t1 = 2V */
@@ -516,8 +511,8 @@ ecc_projective_madd (ecc_point * P, ecc_point * Q, ecc_point * R,
     /* t0 = r * t1 */
     mpz_mul (t0, r, t1);
     mpz_mod (t0, t0, modulus);
-    /* t1 = Y1 * HHH */
-    mpz_mul (t1, P->y, HHH);
+    /* t1 = Y1 * J */
+    mpz_mul (t1, P->y, J);
     mpz_mod (t1, t1, modulus);
     /* t1 = 2t1 */
     mpz_add (t1, t1, t1);
@@ -533,7 +528,7 @@ ecc_projective_madd (ecc_point * P, ecc_point * Q, ecc_point * R,
     mpz_mul (R->z, P->z, S1);
     mpz_mod (R->z, R->z, modulus);
 
-    mp_clear_multi (&Z1Z1, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
+    mp_clear_multi (&Z1Z1, &S1, &H, &J, &r, &V, &t0, &t1, NULL);
 
     return 0;
 }

@@ -18,6 +18,11 @@
  *
  */
 
+/* needed for gnutls_* types */
+#include <gnutls_num.h>
+#include <x509/x509_int.h>
+#include <x509/common.h>
+
 #include "ecc.h"
 
 /* size of sliding window, don't change this! */
@@ -32,16 +37,16 @@
 #endif
 
 /* per-curve cache structure */
-static struct gnutls_ecc_curve_cache_entry_t {
+struct gnutls_ecc_curve_cache_entry_t {
     gnutls_ecc_curve_t id;
 
     /** The prime that defines the field the curve is in */
     mpz_t modulus;
 
-    /** The array of positive multipliers of G **/
+    /** The array of positive multipliers of G */
     ecc_point *pos[PRECOMPUTE_LENGTH];
 
-    /** The array of positive multipliers of G **/
+    /** The array of positive multipliers of G */
     ecc_point *neg[PRECOMPUTE_LENGTH];
 };
 typedef struct gnutls_ecc_curve_cache_entry_t gnutls_ecc_curve_cache_entry_t;
@@ -53,35 +58,42 @@ gnutls_ecc_curve_cache_entry_t* ecc_wmnaf_cache = NULL;
 static void ecc_wmnaf_cache_entry_free(gnutls_ecc_curve_cache_entry_t *p) {
     int i;
 
-    mpz_free(p->modulus);
+    mpz_clear(p->modulus);
 
     for(i = 0; p->pos[i]; ++i) {
         ecc_del_point(p->pos[i]);
-        ecc_del_point(p->new[i]);
+        ecc_del_point(p->neg[i]);
     }
 }
 
 /* free curves caches */
-void ecc_wmnaf_cache_free(gnutls_ecc_curve_cache_entry_t *p) {
-    for (; *p.id; ++p) {
-        ecc_wmnaf_cache_entry_free(p);
+static void _ecc_wmnaf_cache_free(gnutls_ecc_curve_cache_entry_t *p) {
+    if (p) {
+        for (; p->id; ++p) {
+            ecc_wmnaf_cache_entry_free(p);
+        }
+        free(p);
     }
-    free(p);
+}
+
+/* free curves caches */
+void ecc_wmnaf_cache_free(void) {
+    _ecc_wmnaf_cache_free(ecc_wmnaf_cache);
 }
 
 /* initialize curves caches */
-int ecc_wmnaf_cache_init(gnutls_ecc_curve_cache_entry_t **cache) {
-    int i, j, k;
+static int _ecc_wmnaf_cache_init(gnutls_ecc_curve_cache_entry_t **cache) {
+    int i, j, k, err;
     ecc_point* G;
     mpz_t a;
 
     gnutls_ecc_curve_cache_entry_t* ret;
 
-    gnutls_ecc_curve_t *p;
-    gnutls_ecc_curve_entry_st *st;
+    const gnutls_ecc_curve_t *p;
+    const gnutls_ecc_curve_entry_st *st;
 
     ret = (gnutls_ecc_curve_cache_entry_t*) malloc(MAX_ALGOS*sizeof(gnutls_ecc_curve_cache_entry_t));
-    if (!ret) return NULL;
+    if (!ret) return 1;
 
     mpz_init(a);
     G = ecc_new_point();
@@ -158,17 +170,18 @@ int ecc_wmnaf_cache_init(gnutls_ecc_curve_cache_entry_t **cache) {
         }
     }
 
-    ret[++j].id = NULL;
+    ret[++j].id = 0;
 
     err = 0;
 
     *cache = ret;
+    goto done;
 done:
-    mpz_free(a);
+    mpz_clear(a);
     ecc_del_point(G);
     if (err) {
         if (err == -11) {
-            mpz_free(ret[j].modulus);
+            mpz_clear(ret[j].modulus);
         }
 
         for(k = 0; k < j; ++k) {
@@ -181,16 +194,21 @@ done:
     return err;
 }
 
+/* initialize curves caches */
+int ecc_wmnaf_cache_init(void) {
+    return _ecc_wmnaf_cache_init(&ecc_wmnaf_cache);
+}
+
 /* perform cache lookup i.e. return curve's cache by its id */
-gnutls_ecc_curve_cache_entry_t * ecc_wmnaf_cache_lookup(gnutls_ecc_curve_t id) {
-    int i, pid;
+static gnutls_ecc_curve_cache_entry_t * ecc_wmnaf_cache_lookup(gnutls_ecc_curve_t id) {
+    unsigned int i, pid;
     static gnutls_ecc_curve_cache_entry_t * ret = NULL;
 
     if (!id) return NULL;
 
     if (ret->id == id) return ret;
 
-    for(i = 0; pid = ecc_wmnaf_cache[i].id; ++i) {
+    for(i = 0; (pid = ecc_wmnaf_cache[i].id); ++i) {
         if (pid == id) return &ecc_wmnaf_cache[i];
     }
 
@@ -214,11 +232,11 @@ ecc_mulmod_wmnaf_cached (mpz_t k, ecc_point * R, gnutls_ecc_curve_t id, mpz_t a,
     size_t wmnaf_len;
     signed char digit;
 
-    if (k == NULL || R == NULL || id == NULL)
+    if (k == NULL || R == NULL || id == 0)
         return -1;
 
     /* calculate wMNAF */
-    wmnaf = wMNAF(k, WINSIZE, &wmnaf_len);
+    wmnaf = ecc_wMNAF(k, WINSIZE, &wmnaf_len);
     if (!wmnaf) {
         err = -2;
         goto done;
@@ -245,10 +263,10 @@ ecc_mulmod_wmnaf_cached (mpz_t k, ecc_point * R, gnutls_ecc_curve_t id, mpz_t a,
 
         if (digit) {
             if (digit > 0) {
-                if ((err = ecc_projective_madd_point_ng(R, cache->pos[( digit / 2)], R, a, cache->modulus)) != 0)
+                if ((err = ecc_projective_madd(R, cache->pos[( digit / 2)], R, a, cache->modulus)) != 0)
                     goto done;
             } else {
-                if ((err = ecc_projective_madd_point_ng(R, cache->neg[(-digit / 2)], R, a, cache->modulus)) != 0)
+                if ((err = ecc_projective_madd(R, cache->neg[(-digit / 2)], R, a, cache->modulus)) != 0)
                     goto done;
             }
         }

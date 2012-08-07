@@ -31,5 +31,15 @@
 int
 gnutls_crypto_init (void)
 {
+  return ecc_emnaf_cache_init();
+}
+
+/* Functions that refer to the deinitialization of the nettle library.
+ */
+
+int
+gnutls_crypto_deinit (void)
+{
+  ecc_emnaf_cache_free();
   return 0;
 }

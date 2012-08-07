@@ -196,7 +196,7 @@ static int _ecc_wmnaf_cache_array_init
     p = gnutls_ecc_curve_list();
 
     for (j = 0; *p; ++p, ++j) {
-        if ((err = _ecc_wmnaf_cache_entry_init(ret + j, *p)) != 0)
+        if ((err = _ecc_wmnaf_cache_entry_init(ret + *p - 1, *p)) != 0)
             goto done;
     }
 
@@ -221,20 +221,6 @@ done:
 /* initialize curves caches */
 int ecc_wmnaf_cache_init(void) {
     return _ecc_wmnaf_cache_array_init(&ecc_wmnaf_cache);
-}
-
-/* perform cache lookup i.e. return curve's cache by its id */
-static gnutls_ecc_curve_cache_entry_t * ecc_wmnaf_cache_lookup(gnutls_ecc_curve_t id) {
-    unsigned int i, pid;
-    static gnutls_ecc_curve_cache_entry_t * ret = NULL;
-
-    if (ret->id == id) return ret;
-
-    for(i = 0; (pid = ecc_wmnaf_cache[i].id); ++i) {
-        if (pid == id) return &ecc_wmnaf_cache[i];
-    }
-
-    return NULL;
 }
 
 /*
@@ -270,11 +256,7 @@ ecc_mulmod_wmnaf_cached (mpz_t k, ecc_point * R, gnutls_ecc_curve_t id, mpz_t a,
     mpz_set_ui(R->z, 0);
 
     /* do cache lookup */
-    cache = ecc_wmnaf_cache_lookup(id);
-    if (!cache) {
-        err = -1;
-        goto done;
-    }
+    cache = ecc_wmnaf_cache + id - 1;
 
     /* perform ops */
     for (j = wmnaf_len - 1; j >= 0; --j) {

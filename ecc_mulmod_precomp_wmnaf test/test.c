@@ -10,13 +10,13 @@
 
 int main(void) {
     mpz_t k, a, modulus;
-    ecc_point *G, *Rclas, *Rprecomp;
+    ecc_point *G, *Rclas, *Rcached;
     int map = 1;
 
     int rand, i;
 
     clock_t start;
-    double precomp_time, classic_time;
+    double cached_time, classic_time;
 
     char check;
 
@@ -24,12 +24,12 @@ int main(void) {
 
     G = ecc_new_point();
     Rclas = ecc_new_point();
-    Rprecomp = ecc_new_point();
+    Rcached = ecc_new_point();
 
     ecc_wmnaf_cache_init();
 
     GNUTLS_ECC_CURVE_LOOP (
-        printf("Running test sequence for curve %s\n", p->name);
+        printf("Running test sequence for curve %s with id:%i\n", p->name, p->id);
 
         mpz_set_str(G->x,    p->Gx,     16);
         mpz_set_str(G->y,    p->Gy,     16);
@@ -49,20 +49,20 @@ int main(void) {
             classic_time = ((double) (clock() - start)) / CLOCKS_PER_SEC;
 
             start = clock();
-            //ecc_mulmod_wmnaf_cached(k, Rprecomp, p->id, a, map);
-            precomp_time = ((double) (clock() - start)) / CLOCKS_PER_SEC;
+            ecc_mulmod_wmnaf_cached(k, Rcached, p->id, a, map);
+            cached_time = ((double) (clock() - start)) / CLOCKS_PER_SEC;
 
-            check = (!mpz_cmp(Rprecomp->x, Rclas->x)) && (!mpz_cmp(Rprecomp->y, Rclas->y));
+            check = (!mpz_cmp(Rcached->x, Rclas->x)) && (!mpz_cmp(Rcached->y, Rclas->y));
 
-            printf("Classic time: %.15f; Precomp time: %.15f; Check: %i\n", classic_time, precomp_time, check);
+            printf("Classic time: %.15f; Cached time: %.15f; Check: %i\n", classic_time, cached_time, check);
         }
 
         printf("\n");
 
     );
 
-    ecc_wmnaf_cache_free();
-    ecc_del_point(Rprecomp);
+    //ecc_wmnaf_cache_free();
+    ecc_del_point(Rcached);
     ecc_del_point(Rclas);
     ecc_del_point(G);
 

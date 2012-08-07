@@ -76,7 +76,7 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
     /* pos[0] == 2G for a while, later it will be set to the expected 1G */
     if ((err = ecc_projective_dbl_point(G, pos[0], a, modulus)) != 0)
         goto done;
-   
+
     /* pos[1] == 3G */
     if ((err = ecc_projective_add_point_ng(pos[0], G, pos[1], a, modulus)) != 0)
         goto done;
@@ -86,7 +86,7 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
         if ((err = ecc_projective_add_point_ng(pos[j-1], pos[0], pos[j], a, modulus)) != 0)
            goto done;
     }
-   
+
     /* set pos[0] == 1G as expected
      * after this step we don't need G at all 
      * and can change it without worries even if R == G */

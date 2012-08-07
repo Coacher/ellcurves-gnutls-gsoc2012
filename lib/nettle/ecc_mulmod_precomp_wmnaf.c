@@ -31,105 +31,190 @@
     #define PRECOMPUTE_LENGTH (1 << (WINSIZE - 1))
 #endif
 
-/* initialize caches for all available curves */
-int ecc_precomp_init(void) {
+/* per-curve cache structure */
+static struct gnutls_ecc_curve_cache_entry_t {
+    gnutls_ecc_curve_t id;
 
+    /** The prime that defines the field the curve is in */
+    mpz_t modulus;
 
+    /** The array of positive multipliers of G **/
+    ecc_point *pos[PRECOMPUTE_LENGTH];
 
+    /** The array of positive multipliers of G **/
+    ecc_point *neg[PRECOMPUTE_LENGTH];
+};
+typedef struct gnutls_ecc_curve_cache_entry_t gnutls_ecc_curve_cache_entry_t;
 
+/* global cache */
+gnutls_ecc_curve_cache_entry_t* ecc_wmnaf_cache = NULL;
 
+/* free single cache entry */
+static void ecc_wmnaf_cache_entry_free(gnutls_ecc_curve_cache_entry_t *p) {
+    int i;
 
+    mpz_free(p->modulus);
 
+    for(i = 0; p->pos[i]; ++i) {
+        ecc_del_point(p->pos[i]);
+        ecc_del_point(p->new[i]);
+    }
+}
 
+/* free curves caches */
+void ecc_wmnaf_cache_free(gnutls_ecc_curve_cache_entry_t *p) {
+    for (; *p.id; ++p) {
+        ecc_wmnaf_cache_entry_free(p);
+    }
+    free(p);
+}
 
+/* initialize curves caches */
+int ecc_wmnaf_cache_init(gnutls_ecc_curve_cache_entry_t **cache) {
+    int i, j, k;
+    ecc_point* G;
+    mpz_t a;
 
-/* do precompute */
-int ecc_precomp_init(ecc_point * G, mpz_t a, mpz_t modulus) {
-    int i, j, err;
+    gnutls_ecc_curve_cache_entry_t* ret;
 
-    if (G == NULL || modulus == NULL)
-        return -1;
+    gnutls_ecc_curve_t *p;
+    gnutls_ecc_curve_entry_st *st;
 
-    /* alloc ram for precomputed values */
-    for (i = 0; i < PRECOMPUTE_LENGTH; ++i) {
-        precomp_pos[i] = ecc_new_point();
-        precomp_neg[i] = ecc_new_point();
-        if (precomp_pos[i] == NULL || precomp_neg[i] == NULL) {
-            for (j = 0; j < i; ++j) {
-              ecc_del_point(precomp_pos[j]);
-              ecc_del_point(precomp_neg[j]);
+    ret = (gnutls_ecc_curve_cache_entry_t*) malloc(MAX_ALGOS*sizeof(gnutls_ecc_curve_cache_entry_t));
+    if (!ret) return NULL;
+
+    mpz_init(a);
+    G = ecc_new_point();
+
+    /* get supported curves' ids */
+    p = gnutls_ecc_curve_list();
+
+    mpz_set_si(a, -3);
+
+    for (j = 0; *p; ++p, ++j) {
+        st =  _gnutls_ecc_curve_get_params(*p);
+
+        /* set id */
+        ret[j].id = *p;
+
+        /* set modulus*/
+        mpz_init(ret[j].modulus);
+        mpz_set_str(ret[j].modulus, st->prime, 16);
+
+        /* get generator point*/
+        mpz_set_str(G->x, st->Gx, 16);
+        mpz_set_str(G->y, st->Gy, 16);
+        mpz_set_ui (G->z, 1);        
+
+        /* alloc ram for precomputed values */
+        for (i = 0; i < PRECOMPUTE_LENGTH; ++i) {
+            ret[j].pos[i] = ecc_new_point();
+            ret[j].neg[i] = ecc_new_point();
+            if (ret[j].pos[i] == NULL || ret[j].neg[i] == NULL) {
+                for (k = 0; k < i; ++k) {
+                  ecc_del_point(ret[j].pos[k]);
+                  ecc_del_point(ret[j].neg[k]);
+                }
+
+                err = -11;
+                goto done;
             }
+        }
 
-            return -1;
+        /* fill in pos and neg arrays with precomputed values
+         * pos holds kG for k ==  1, 3, 5, ..., (2^w - 1)
+         * neg holds kG for k == -1,-3,-5, ...,-(2^w - 1)
+         */
+
+        /* pos[0] == 2G for a while, later it will be set to the expected 1G */
+        if ((err = ecc_projective_dbl_point(G, ret[j].pos[0], a, ret[j].modulus)) != 0)
+            goto done;
+
+        /* pos[1] == 3G */
+        if ((err = ecc_projective_add_point_ng(ret[j].pos[0], G, ret[j].pos[1], a, ret[j].modulus)) != 0)
+            goto done;
+
+        /* fill in kG for k = 5, 7, ..., (2^w - 1) */
+        for (k = 2; k < PRECOMPUTE_LENGTH; ++k) {
+            if ((err = ecc_projective_add_point_ng(ret[j].pos[k-1], ret[j].pos[0], ret[j].pos[k], a, ret[j].modulus)) != 0)
+               goto done;
+        }
+
+        /* set pos[0] == 1G as expected
+         * after this step we don't need G at all */
+        mpz_set (ret[j].pos[0]->x, G->x);
+        mpz_set (ret[j].pos[0]->y, G->y);
+        mpz_set (ret[j].pos[0]->z, G->z);
+
+        /* map to affine all elements in pos
+         * this will allow to use ecc_projective_madd later
+         * set neg[i] == -pos[i] */
+        for (k = 0; k < PRECOMPUTE_LENGTH; ++k) {
+            if ((err = ecc_map(ret[j].pos[k], ret[j].modulus)) != 0)
+                goto done;
+
+            if ((err = ecc_projective_negate_point(ret[j].pos[k], ret[j].neg[k], ret[j].modulus)) != 0)
+                goto done;
         }
     }
 
-    /* fill in precomp_pos and precomp_neg arrays with precomputed values
-     * precomp_pos holds kG for k ==  1, 3, 5, ..., (2^w - 1)
-     * precomp_neg holds kG for k == -1,-3,-5, ...,-(2^w - 1)
-     */
-
-    /* precomp_pos[0] == 2G for a while, later it will be set to the expected 1G */
-    if ((err = ecc_projective_dbl_point(G, precomp_pos[0], a, modulus)) != 0)
-        goto done;
-   
-    /* precomp_pos[1] == 3G */
-    if ((err = ecc_projective_add_point_ng(precomp_pos[0], G, precomp_pos[1], a, modulus)) != 0)
-        goto done;
-
-    /* fill in kG for k = 5, 7, ..., (2^w - 1) */
-    for (j = 2; j < PRECOMPUTE_LENGTH; ++j) {
-        if ((err = ecc_projective_add_point_ng(precomp_pos[j-1], precomp_pos[0], precomp_pos[j], a, modulus)) != 0)
-           goto done;
-    }
-   
-    /* set precomp_pos[0] == 1G as expected
-     * after this step we don't need G at all 
-     * and can change it without worries even if R == G */
-    mpz_set (precomp_pos[0]->x, G->x);
-    mpz_set (precomp_pos[0]->y, G->y);
-    mpz_set (precomp_pos[0]->z, G->z);
-
-    /* precomp_neg[i] == -precomp_pos[i] */
-    for (j = 0; j < PRECOMPUTE_LENGTH; ++j) {
-        if ((err = ecc_projective_negate_point(precomp_pos[j], precomp_neg[j], modulus)) != 0)
-            goto done;
-    }
+    ret[++j].id = NULL;
 
     err = 0;
 
+    *cache = ret;
 done:
+    mpz_free(a);
+    ecc_del_point(G);
+    if (err) {
+        if (err == -11) {
+            mpz_free(ret[j].modulus);
+        }
+
+        for(k = 0; k < j; ++k) {
+            ecc_wmnaf_cache_entry_free(&ret[k]);
+        }
+
+        free(ret);
+        *cache = NULL;
+    }
     return err;
 }
 
-/* free memory allocated for precomputed values */
-void ecc_precomp_free(void) {
-    int i;
+/* perform cache lookup i.e. return curve's cache by its id */
+gnutls_ecc_curve_cache_entry_t * ecc_wmnaf_cache_lookup(gnutls_ecc_curve_t id) {
+    int i, pid;
+    static gnutls_ecc_curve_cache_entry_t * ret = NULL;
 
-    for (i = 0; i < PRECOMPUTE_LENGTH; ++i) {
-        ecc_del_point(precomp_pos[i]);
-        ecc_del_point(precomp_neg[i]);
+    if (!id) return NULL;
+
+    if (ret->id == id) return ret;
+
+    for(i = 0; pid = ecc_wmnaf_cache[i].id; ++i) {
+        if (pid == id) return &ecc_wmnaf_cache[i];
     }
+
+    return NULL;
 }
 
 /*
-   Perform a point multiplication using wMNAF repr and precomputed values.
+   Perform a point multiplication utilizing cache
    @param k    The scalar to multiply by
    @param R    [out] Destination for kG
-   @param modulus  The modulus of the field the ECC curve is in
-   @param map      Boolean whether to map back to affine or not (1 == map, 0 == leave in projective)
+   @param id   Curve's id
    @return CRYPT_OK on success
 */
 int
-ecc_mulmod_precomp_wmnaf (mpz_t k, ecc_point * R, mpz_t a, mpz_t modulus, int map)
+ecc_mulmod_wmnaf_cached (mpz_t k, ecc_point * R, gnutls_ecc_curve_t id, mpz_t a, int map)
 {
     int j, err;
-
+    
+    gnutls_ecc_curve_cache_entry_t * cache = NULL;
     signed char* wmnaf = NULL;
     size_t wmnaf_len;
     signed char digit;
 
-    if (k == NULL || R == NULL || modulus == NULL)
+    if (k == NULL || R == NULL || id == NULL)
         return -1;
 
     /* calculate wMNAF */
@@ -143,20 +228,27 @@ ecc_mulmod_precomp_wmnaf (mpz_t k, ecc_point * R, mpz_t a, mpz_t modulus, int ma
     mpz_set_ui(R->x, 1);
     mpz_set_ui(R->y, 1);
     mpz_set_ui(R->z, 0);
-   
+
+    /* do cache lookup */
+    cache = ecc_wmnaf_cache_lookup(id);
+    if (!cache) {
+        err = -1;
+        goto done;
+    }
+
     /* perform ops */
     for (j = wmnaf_len - 1; j >= 0; --j) {
-        if ((err = ecc_projective_dbl_point(R, R, a, modulus)) != 0)
+        if ((err = ecc_projective_dbl_point(R, R, a, cache->modulus)) != 0)
             goto done;
 
         digit = wmnaf[j];
 
         if (digit) {
             if (digit > 0) {
-                if ((err = ecc_projective_add_point_ng(R, precomp_pos[( digit / 2)], R, a, modulus)) != 0)
+                if ((err = ecc_projective_madd_point_ng(R, cache->pos[( digit / 2)], R, a, cache->modulus)) != 0)
                     goto done;
             } else {
-                if ((err = ecc_projective_add_point_ng(R, precomp_neg[(-digit / 2)], R, a, modulus)) != 0)
+                if ((err = ecc_projective_madd_point_ng(R, cache->neg[(-digit / 2)], R, a, cache->modulus)) != 0)
                     goto done;
             }
         }
@@ -165,7 +257,7 @@ ecc_mulmod_precomp_wmnaf (mpz_t k, ecc_point * R, mpz_t a, mpz_t modulus, int ma
 
     /* map R back from projective space */
     if (map) {
-        err = ecc_map(R, modulus);
+        err = ecc_map(R, cache->modulus);
     } else {
         err = 0;
     }

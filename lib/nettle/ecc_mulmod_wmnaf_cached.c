@@ -66,13 +66,14 @@ static void _ecc_wmnaf_cache_entry_free(gnutls_ecc_curve_cache_entry_t* p) {
 }
 
 /* free array of cache entries */
-static void _ecc_wmnaf_cache_array_free(gnutls_ecc_curve_cache_entry_t* p) {
+static void _ecc_wmnaf_cache_array_free(gnutls_ecc_curve_cache_entry_t* cache) {
+    gnutls_ecc_curve_cache_entry_t* p = cache;
     if (p) {
         for (; p->id; ++p) {
             _ecc_wmnaf_cache_entry_free(p);
         }
 
-        free(p);
+        free(cache);
     }
 }
 

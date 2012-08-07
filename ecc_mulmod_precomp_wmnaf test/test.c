@@ -61,7 +61,7 @@ int main(void) {
 
     );
 
-    //ecc_wmnaf_cache_free();
+    ecc_wmnaf_cache_free();
     ecc_del_point(Rcached);
     ecc_del_point(Rclas);
     ecc_del_point(G);

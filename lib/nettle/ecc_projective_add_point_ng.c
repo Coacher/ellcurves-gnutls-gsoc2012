@@ -62,6 +62,8 @@
    @param a        Curve's a value
    @param modulus  The modulus of the field the ECC curve is in
    @return 0 on success
+   Note: this function will work when a != -3.
+   It will work in general case without a change.
 */
 int
 ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
@@ -258,6 +260,8 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
    @param a        Curve's a value
    @param modulus  The modulus of the field the ECC curve is in
    @return 0 on success
+   Note: this function will work when a != -3.
+   It will work in general case without a change.
 */
 int
 ecc_projective_madd (ecc_point * P, ecc_point * Q, ecc_point * R,

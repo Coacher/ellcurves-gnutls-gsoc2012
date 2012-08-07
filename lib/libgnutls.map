@@ -846,9 +846,9 @@ GNUTLS_PRIVATE {
     ecc_projective_madd;
     ecc_map;
     # Internal symbols needed for caching testing:
-    ecc_precomp_init;
-    ecc_precomp_free;
-    ecc_mulmod_precomp_wmnaf;
+    ecc_wmnaf_cache_init;
+    ecc_wmnaf_cache_free;
+    ecc_mulmod_wmnaf_cached;
   local:
     *;
 };

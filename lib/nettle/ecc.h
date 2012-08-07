@@ -137,8 +137,15 @@ int ecc_projective_madd (ecc_point* P, ecc_point* Q, ecc_point* R, mpz_t a, mpz_
 /* R = kG */
 int ecc_mulmod(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int map);
 int ecc_mulmod_timing(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int map);
+
+/* wMNAF-based mulmod */
 signed char* ecc_wMNAF(mpz_t x, int w, size_t *ret_len);
 int ecc_mulmod_wmnaf(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int map);
+
+/* cache-enabled wMNAF-based mulmod */
+int ecc_wmnaf_cache_init(gnutls_ecc_curve_cache_entry_t **cache);
+void ecc_wmnaf_cache_free(gnutls_ecc_curve_cache_entry_t *p);
+int ecc_mulmod_wmnaf_cached (mpz_t k, ecc_point * R, gnutls_ecc_curve_t id, mpz_t a, int map);
 
 /* check if the given point is neutral point */
 int ecc_projective_isneutral(ecc_point *P, mpz_t modulus);

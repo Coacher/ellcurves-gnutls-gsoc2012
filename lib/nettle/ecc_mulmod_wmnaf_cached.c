@@ -19,9 +19,8 @@
  */
 
 /* needed for gnutls_* types */
-#include <gnutls_num.h>
-#include <x509/x509_int.h>
-#include <x509/common.h>
+#include <gnutls_int.h>
+#include <algorithms.h>
 
 #include "ecc.h"
 
@@ -37,7 +36,8 @@
 #endif
 
 /* per-curve cache structure */
-struct gnutls_ecc_curve_cache_entry_t {
+typedef struct {
+    /* curve's id */
     gnutls_ecc_curve_t id;
 
     /** The prime that defines the field the curve is in */
@@ -46,128 +46,158 @@ struct gnutls_ecc_curve_cache_entry_t {
     /** The array of positive multipliers of G */
     ecc_point *pos[PRECOMPUTE_LENGTH];
 
-    /** The array of positive multipliers of G */
+    /** The array of negative multipliers of G */
     ecc_point *neg[PRECOMPUTE_LENGTH];
-};
-typedef struct gnutls_ecc_curve_cache_entry_t gnutls_ecc_curve_cache_entry_t;
+} gnutls_ecc_curve_cache_entry_t;
 
 /* global cache */
-gnutls_ecc_curve_cache_entry_t* ecc_wmnaf_cache = NULL;
+static gnutls_ecc_curve_cache_entry_t* ecc_wmnaf_cache = NULL;
 
 /* free single cache entry */
-static void ecc_wmnaf_cache_entry_free(gnutls_ecc_curve_cache_entry_t *p) {
+static void _ecc_wmnaf_cache_entry_free(gnutls_ecc_curve_cache_entry_t* p) {
     int i;
 
     mpz_clear(p->modulus);
 
-    for(i = 0; p->pos[i]; ++i) {
+    for(i = 0; i < PRECOMPUTE_LENGTH; ++i) {
         ecc_del_point(p->pos[i]);
         ecc_del_point(p->neg[i]);
     }
 }
 
-/* free curves caches */
-static void _ecc_wmnaf_cache_free(gnutls_ecc_curve_cache_entry_t *p) {
+/* free array of cache entries */
+static void _ecc_wmnaf_cache_array_free(gnutls_ecc_curve_cache_entry_t* p) {
     if (p) {
         for (; p->id; ++p) {
-            ecc_wmnaf_cache_entry_free(p);
+            _ecc_wmnaf_cache_entry_free(p);
         }
+
         free(p);
     }
 }
 
 /* free curves caches */
 void ecc_wmnaf_cache_free(void) {
-    _ecc_wmnaf_cache_free(ecc_wmnaf_cache);
+    _ecc_wmnaf_cache_array_free(ecc_wmnaf_cache);
 }
 
-/* initialize curves caches */
-static int _ecc_wmnaf_cache_init(gnutls_ecc_curve_cache_entry_t **cache) {
-    int i, j, k, err;
+/* initialize single cache entry */
+static int _ecc_wmnaf_cache_entry_init(gnutls_ecc_curve_cache_entry_t* p, \
+        gnutls_ecc_curve_t id) {
+    int i, j, err;
     ecc_point* G;
     mpz_t a;
+
+    const gnutls_ecc_curve_entry_st *st = NULL;
+
+    if (p == NULL || id == 0)
+        return -1;
+
+    mpz_init(a);
+    G = ecc_new_point();
+    mpz_set_si(a, -3);
+
+    st =  _gnutls_ecc_curve_get_params(id);
+    if (st == NULL) {
+        err = -1;
+        goto done;
+    }
+
+    /* set id */
+    p->id = id;
+
+    /* set modulus*/
+    mpz_init(p->modulus);
+    mpz_set_str(p->modulus, st->prime, 16);
+
+    /* get generator point*/
+    mpz_set_str(G->x, st->Gx, 16);
+    mpz_set_str(G->y, st->Gy, 16);
+    mpz_set_ui (G->z, 1);        
+
+    /* alloc ram for precomputed values */
+    for (i = 0; i < PRECOMPUTE_LENGTH; ++i) {
+        p->pos[i] = ecc_new_point();
+        p->neg[i] = ecc_new_point();
+        if (p->pos[i] == NULL || p->neg[i] == NULL) {
+            for (j = 0; j < i; ++j) {
+              ecc_del_point(p->pos[j]);
+              ecc_del_point(p->neg[j]);
+            }
+
+            err = -1;
+            goto done;
+        }
+    }
+
+    /* fill in pos and neg arrays with precomputed values
+     * pos holds kG for k ==  1, 3, 5, ..., (2^w - 1)
+     * neg holds kG for k == -1,-3,-5, ...,-(2^w - 1)
+     */
+
+    /* pos[0] == 2G for a while, later it will be set to the expected 1G */
+    if ((err = ecc_projective_dbl_point(G, p->pos[0], a, p->modulus)) != 0)
+        goto done;
+
+    /* pos[1] == 3G */
+    if ((err = ecc_projective_add_point_ng(p->pos[0], G, p->pos[1], a, p->modulus)) != 0)
+        goto done;
+
+    /* fill in kG for k = 5, 7, ..., (2^w - 1) */
+    for (j = 2; j < PRECOMPUTE_LENGTH; ++j) {
+        if ((err = ecc_projective_add_point_ng(p->pos[j-1], p->pos[0], p->pos[j], a, p->modulus)) != 0)
+           goto done;
+    }
+
+    /* set pos[0] == 1G as expected
+     * after this step we don't need G at all */
+    mpz_set (p->pos[0]->x, G->x);
+    mpz_set (p->pos[0]->y, G->y);
+    mpz_set (p->pos[0]->z, G->z);
+
+    /* map to affine all elements in pos
+     * this will allow to use ecc_projective_madd later
+     * set neg[i] == -pos[i] */
+    for (j = 0; j < PRECOMPUTE_LENGTH; ++j) {
+        if ((err = ecc_map(p->pos[j], p->modulus)) != 0)
+            goto done;
+
+        if ((err = ecc_projective_negate_point(p->pos[j], p->neg[j], p->modulus)) != 0)
+            goto done;
+    }
+
+    err = 0;
+done:
+    mpz_clear(a);
+    ecc_del_point(G);
+
+    if (err) {
+        mpz_clear(p->modulus);
+    }
+
+    return err;
+}
+
+/* initialize array of cache entries */
+static int _ecc_wmnaf_cache_array_init 
+(gnutls_ecc_curve_cache_entry_t **cache) {
+    int j, err;
 
     gnutls_ecc_curve_cache_entry_t* ret;
 
     const gnutls_ecc_curve_t *p;
-    const gnutls_ecc_curve_entry_st *st;
 
-    ret = (gnutls_ecc_curve_cache_entry_t*) malloc(MAX_ALGOS*sizeof(gnutls_ecc_curve_cache_entry_t));
-    if (!ret) return 1;
-
-    mpz_init(a);
-    G = ecc_new_point();
+    ret = (gnutls_ecc_curve_cache_entry_t*) \
+          malloc(MAX_ALGOS*sizeof(gnutls_ecc_curve_cache_entry_t));
+    if (ret == NULL)
+        return -1;
 
     /* get supported curves' ids */
     p = gnutls_ecc_curve_list();
 
-    mpz_set_si(a, -3);
-
     for (j = 0; *p; ++p, ++j) {
-        st =  _gnutls_ecc_curve_get_params(*p);
-
-        /* set id */
-        ret[j].id = *p;
-
-        /* set modulus*/
-        mpz_init(ret[j].modulus);
-        mpz_set_str(ret[j].modulus, st->prime, 16);
-
-        /* get generator point*/
-        mpz_set_str(G->x, st->Gx, 16);
-        mpz_set_str(G->y, st->Gy, 16);
-        mpz_set_ui (G->z, 1);        
-
-        /* alloc ram for precomputed values */
-        for (i = 0; i < PRECOMPUTE_LENGTH; ++i) {
-            ret[j].pos[i] = ecc_new_point();
-            ret[j].neg[i] = ecc_new_point();
-            if (ret[j].pos[i] == NULL || ret[j].neg[i] == NULL) {
-                for (k = 0; k < i; ++k) {
-                  ecc_del_point(ret[j].pos[k]);
-                  ecc_del_point(ret[j].neg[k]);
-                }
-
-                err = -11;
-                goto done;
-            }
-        }
-
-        /* fill in pos and neg arrays with precomputed values
-         * pos holds kG for k ==  1, 3, 5, ..., (2^w - 1)
-         * neg holds kG for k == -1,-3,-5, ...,-(2^w - 1)
-         */
-
-        /* pos[0] == 2G for a while, later it will be set to the expected 1G */
-        if ((err = ecc_projective_dbl_point(G, ret[j].pos[0], a, ret[j].modulus)) != 0)
+        if ((err = _ecc_wmnaf_cache_entry_init(ret + j, *p)) != 0)
             goto done;
-
-        /* pos[1] == 3G */
-        if ((err = ecc_projective_add_point_ng(ret[j].pos[0], G, ret[j].pos[1], a, ret[j].modulus)) != 0)
-            goto done;
-
-        /* fill in kG for k = 5, 7, ..., (2^w - 1) */
-        for (k = 2; k < PRECOMPUTE_LENGTH; ++k) {
-            if ((err = ecc_projective_add_point_ng(ret[j].pos[k-1], ret[j].pos[0], ret[j].pos[k], a, ret[j].modulus)) != 0)
-               goto done;
-        }
-
-        /* set pos[0] == 1G as expected
-         * after this step we don't need G at all */
-        mpz_set (ret[j].pos[0]->x, G->x);
-        mpz_set (ret[j].pos[0]->y, G->y);
-        mpz_set (ret[j].pos[0]->z, G->z);
-
-        /* map to affine all elements in pos
-         * this will allow to use ecc_projective_madd later
-         * set neg[i] == -pos[i] */
-        for (k = 0; k < PRECOMPUTE_LENGTH; ++k) {
-            if ((err = ecc_map(ret[j].pos[k], ret[j].modulus)) != 0)
-                goto done;
-
-            if ((err = ecc_projective_negate_point(ret[j].pos[k], ret[j].neg[k], ret[j].modulus)) != 0)
-                goto done;
-        }
     }
 
     ret[++j].id = 0;
@@ -175,17 +205,11 @@ static int _ecc_wmnaf_cache_init(gnutls_ecc_curve_cache_entry_t **cache) {
     err = 0;
 
     *cache = ret;
-    goto done;
 done:
-    mpz_clear(a);
-    ecc_del_point(G);
     if (err) {
-        if (err == -11) {
-            mpz_clear(ret[j].modulus);
-        }
-
-        for(k = 0; k < j; ++k) {
-            ecc_wmnaf_cache_entry_free(&ret[k]);
+        int i;
+        for(i = 0; i < j; ++i) {
+            _ecc_wmnaf_cache_entry_free(ret + i);
         }
 
         free(ret);
@@ -196,15 +220,13 @@ done:
 
 /* initialize curves caches */
 int ecc_wmnaf_cache_init(void) {
-    return _ecc_wmnaf_cache_init(&ecc_wmnaf_cache);
+    return _ecc_wmnaf_cache_array_init(&ecc_wmnaf_cache);
 }
 
 /* perform cache lookup i.e. return curve's cache by its id */
 static gnutls_ecc_curve_cache_entry_t * ecc_wmnaf_cache_lookup(gnutls_ecc_curve_t id) {
     unsigned int i, pid;
     static gnutls_ecc_curve_cache_entry_t * ret = NULL;
-
-    if (!id) return NULL;
 
     if (ret->id == id) return ret;
 

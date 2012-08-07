@@ -20,11 +20,33 @@
  *
  */
 
+/**
+ * gnutls_ecc_curve_t:
+ * @GNUTLS_ECC_CURVE_INVALID: Cannot be known
+ * @GNUTLS_ECC_CURVE_SECP192R1: the SECP192R1 curve
+ * @GNUTLS_ECC_CURVE_SECP224R1: the SECP224R1 curve
+ * @GNUTLS_ECC_CURVE_SECP256R1: the SECP256R1 curve
+ * @GNUTLS_ECC_CURVE_SECP384R1: the SECP384R1 curve
+ * @GNUTLS_ECC_CURVE_SECP521R1: the SECP521R1 curve
+ *
+ * Enumeration of ECC curves.
+ */
+typedef enum
+{
+  GNUTLS_ECC_CURVE_INVALID=0,
+  GNUTLS_ECC_CURVE_SECP224R1,
+  GNUTLS_ECC_CURVE_SECP256R1,
+  GNUTLS_ECC_CURVE_SECP384R1,
+  GNUTLS_ECC_CURVE_SECP521R1,
+  GNUTLS_ECC_CURVE_SECP192R1,
+} gnutls_ecc_curve_t;
+
 /* ECC */
 struct gnutls_ecc_curve_entry_st
 {
   const char *name;
   const char* oid;
+  gnutls_ecc_curve_t id;
   int tls_id; /* The RFC4492 namedCurve ID */
   int size; /* the size in bytes */
 
@@ -50,6 +72,7 @@ static const gnutls_ecc_curve_entry_st ecc_curves[] = {
   {
     .name = "SECP192R1", 
     .oid = "1.2.840.10045.3.1.1",
+    .id = GNUTLS_ECC_CURVE_SECP192R1,
     .tls_id = 19,
     .size = 24,
     .prime = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFFFFFFFFFF",
@@ -62,6 +85,7 @@ static const gnutls_ecc_curve_entry_st ecc_curves[] = {
   {
     .name = "SECP224R1", 
     .oid = "1.3.132.0.33",
+    .id = GNUTLS_ECC_CURVE_SECP224R1,
     .tls_id = 21,
     .size = 28,
     .prime = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF000000000000000000000001",
@@ -74,6 +98,7 @@ static const gnutls_ecc_curve_entry_st ecc_curves[] = {
   {
     .name = "SECP256R1", 
     .oid = "1.2.840.10045.3.1.7",
+    .id = GNUTLS_ECC_CURVE_SECP256R1,
     .tls_id = 23,
     .size = 32,
     .prime = "FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF",
@@ -86,6 +111,7 @@ static const gnutls_ecc_curve_entry_st ecc_curves[] = {
   {
     .name = "SECP384R1",
     .oid = "1.3.132.0.34",
+    .id = GNUTLS_ECC_CURVE_SECP384R1,
     .tls_id = 24,
     .size = 48,
     .prime = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFF0000000000000000FFFFFFFF",
@@ -98,6 +124,7 @@ static const gnutls_ecc_curve_entry_st ecc_curves[] = {
   {
     .name = "SECP521R1",
     .oid = "1.3.132.0.35",
+    .id = GNUTLS_ECC_CURVE_SECP521R1,
     .tls_id = 25,
     .size = 66,
     .prime = "01FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",

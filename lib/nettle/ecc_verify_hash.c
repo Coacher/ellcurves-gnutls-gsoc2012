@@ -122,7 +122,7 @@ ecc_verify_hash (struct dsa_signature *signature,
 
   /* add them */
   if ((err =
-       ecc_projective_add_point_ng (mQ, mG, mG, key->A, key->prime)) != 0)
+       ecc_projective_madd (mQ, mG, mG, key->A, key->prime)) != 0)
     {
       goto error;
     }

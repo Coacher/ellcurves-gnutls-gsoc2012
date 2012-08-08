@@ -49,7 +49,7 @@ int main(void) {
             classic_time = ((double) (clock() - start)) / CLOCKS_PER_SEC;
 
             start = clock();
-            ecc_mulmod_wmnaf_cached(k, Rcached, p->id, a, map);
+            ecc_mulmod_wmnaf_cached(k, Rcached, p->id, map);
             cached_time = ((double) (clock() - start)) / CLOCKS_PER_SEC;
 
             check = (!mpz_cmp(Rcached->x, Rclas->x)) && (!mpz_cmp(Rcached->y, Rclas->y));

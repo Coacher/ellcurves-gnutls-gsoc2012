@@ -236,7 +236,7 @@ int ecc_wmnaf_cache_init(void) {
    @return CRYPT_OK on success
 */
 int
-ecc_mulmod_wmnaf_cached (mpz_t k, ecc_point * R, gnutls_ecc_curve_t id, mpz_t a, int map)
+ecc_mulmod_wmnaf_cached (mpz_t k, ecc_point * R, gnutls_ecc_curve_t id, int map)
 {
     int j, err;
     

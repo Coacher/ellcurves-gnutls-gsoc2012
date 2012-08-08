@@ -379,6 +379,7 @@ _wrap_nettle_pk_sign (gnutls_pk_algorithm_t algo,
       {
         ecc_key priv;
         struct dsa_signature sig;
+        int curve_id = pk_params->flags;
 
         _ecc_params_to_privkey(pk_params, &priv);
 
@@ -393,7 +394,7 @@ _wrap_nettle_pk_sign (gnutls_pk_algorithm_t algo,
           }
 
         ret = ecc_sign_hash(vdata->data, hash_len, 
-                            &sig, NULL, rnd_func, &priv);
+                            &sig, NULL, rnd_func, &priv, curve_id);
         if (ret != 0)
           {
             gnutls_assert ();
@@ -802,7 +803,7 @@ rsa_fail:
         tls_ecc_set.A = st->A;
         tls_ecc_set.B = st->B;
 
-        ret = ecc_make_key(NULL, rnd_func, &key, &tls_ecc_set);
+        ret = ecc_make_key(NULL, rnd_func, &key, &tls_ecc_set, st->id);
         if (ret != 0)
           return gnutls_assert_val(GNUTLS_E_INTERNAL_ERROR);
 

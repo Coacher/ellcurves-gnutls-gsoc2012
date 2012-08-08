@@ -51,7 +51,7 @@
 int
 ecc_verify_hash (struct dsa_signature *signature,
                  const unsigned char *hash, unsigned long hashlen,
-                 int *stat, ecc_key * key)
+                 int *stat, ecc_key * key, gnutls_ecc_curve_t curve_id)
 {
   ecc_point *mG, *mQ;
   mpz_t v, w, u1, u2, e;
@@ -111,7 +111,7 @@ ecc_verify_hash (struct dsa_signature *signature,
   mpz_set (mQ->z, key->pubkey.z);
 
   /* compute u1*mG + u2*mQ = mG */
-  if ((err = ecc_mulmod_wmnaf (u1, mG, mG, key->A, key->prime, 0)) != 0)
+  if ((err = ecc_mulmod_wmnaf_cached (u1, curve_id, mG, key->A, key->prime, 0)) != 0)
     {
       goto error;
     }

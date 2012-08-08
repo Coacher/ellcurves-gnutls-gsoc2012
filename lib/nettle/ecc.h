@@ -112,11 +112,12 @@ int  ecc_shared_secret(ecc_key *private_key, ecc_key *public_key,
 
 int ecc_sign_hash(const unsigned char *in,  unsigned long inlen, 
                         struct dsa_signature *signature,
-                        void *random_ctx, nettle_random_func random, ecc_key *key, gnutls_ecc_curve_t id);
+                        void *random_ctx, nettle_random_func random,
+                        ecc_key *key, gnutls_ecc_curve_t id);
 
 int  ecc_verify_hash(struct dsa_signature * signature,
                      const unsigned char *hash, unsigned long hashlen, 
-                     int *stat, ecc_key *key);
+                     int *stat, ecc_key *key, gnutls_ecc_curve_t id);
 
 /* low level functions */
 ecc_point *ecc_new_point(void);

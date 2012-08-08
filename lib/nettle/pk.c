@@ -561,6 +561,7 @@ _wrap_nettle_pk_verify (gnutls_pk_algorithm_t algo,
         ecc_key pub;
         struct dsa_signature sig;
         int stat;
+        int curve_id = pk_params->flags;
 
         ret = _gnutls_decode_ber_rs (signature, &tmp[0], &tmp[1]);
         if (ret < 0)
@@ -577,7 +578,7 @@ _wrap_nettle_pk_verify (gnutls_pk_algorithm_t algo,
         if (hash_len > vdata->size)
           hash_len = vdata->size;
 
-        ret = ecc_verify_hash(&sig, vdata->data, hash_len, &stat, &pub);
+        ret = ecc_verify_hash(&sig, vdata->data, hash_len, &stat, &pub, curve_id);
         if (ret != 0 || stat != 1)
           {
             gnutls_assert();

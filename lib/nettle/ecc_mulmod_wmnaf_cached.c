@@ -43,6 +43,9 @@ typedef struct {
     /** The prime that defines the field the curve is in */
     mpz_t modulus;
 
+    /** The curve's A value */
+    mpz_t a;
+
     /** The array of positive multipliers of G */
     ecc_point *pos[PRECOMPUTE_LENGTH];
 
@@ -87,16 +90,13 @@ static int _ecc_wmnaf_cache_entry_init(gnutls_ecc_curve_cache_entry_t* p, \
         gnutls_ecc_curve_t id) {
     int i, j, err;
     ecc_point* G;
-    mpz_t a;
 
     const gnutls_ecc_curve_entry_st *st = NULL;
 
     if (p == NULL || id == 0)
         return -1;
 
-    mpz_init(a);
     G = ecc_new_point();
-    mpz_set_si(a, -3);
 
     st =  _gnutls_ecc_curve_get_params(id);
     if (st == NULL) {
@@ -107,14 +107,18 @@ static int _ecc_wmnaf_cache_entry_init(gnutls_ecc_curve_cache_entry_t* p, \
     /* set id */
     p->id = id;
 
-    /* set modulus*/
+    /* set modulus */
     mpz_init(p->modulus);
     mpz_set_str(p->modulus, st->prime, 16);
 
-    /* get generator point*/
+    /* get generator point */
     mpz_set_str(G->x, st->Gx, 16);
     mpz_set_str(G->y, st->Gy, 16);
-    mpz_set_ui (G->z, 1);        
+    mpz_set_ui (G->z, 1);
+
+    /* set A */
+    mpz_init(p->a);
+    mpz_set_str(p->a, st->A, 16);
 
     /* alloc ram for precomputed values */
     for (i = 0; i < PRECOMPUTE_LENGTH; ++i) {
@@ -137,16 +141,16 @@ static int _ecc_wmnaf_cache_entry_init(gnutls_ecc_curve_cache_entry_t* p, \
      */
 
     /* pos[0] == 2G for a while, later it will be set to the expected 1G */
-    if ((err = ecc_projective_dbl_point(G, p->pos[0], a, p->modulus)) != 0)
+    if ((err = ecc_projective_dbl_point(G, p->pos[0], p->a, p->modulus)) != 0)
         goto done;
 
     /* pos[1] == 3G */
-    if ((err = ecc_projective_add_point_ng(p->pos[0], G, p->pos[1], a, p->modulus)) != 0)
+    if ((err = ecc_projective_add_point_ng(p->pos[0], G, p->pos[1], p->a, p->modulus)) != 0)
         goto done;
 
     /* fill in kG for k = 5, 7, ..., (2^w - 1) */
     for (j = 2; j < PRECOMPUTE_LENGTH; ++j) {
-        if ((err = ecc_projective_add_point_ng(p->pos[j-1], p->pos[0], p->pos[j], a, p->modulus)) != 0)
+        if ((err = ecc_projective_add_point_ng(p->pos[j-1], p->pos[0], p->pos[j], p->a, p->modulus)) != 0)
            goto done;
     }
 
@@ -169,11 +173,11 @@ static int _ecc_wmnaf_cache_entry_init(gnutls_ecc_curve_cache_entry_t* p, \
 
     err = 0;
 done:
-    mpz_clear(a);
     ecc_del_point(G);
 
     if (err) {
         mpz_clear(p->modulus);
+        mpz_clear(p->a);
     }
 
     return err;
@@ -261,17 +265,17 @@ ecc_mulmod_wmnaf_cached (mpz_t k, ecc_point * R, gnutls_ecc_curve_t id, mpz_t a,
 
     /* perform ops */
     for (j = wmnaf_len - 1; j >= 0; --j) {
-        if ((err = ecc_projective_dbl_point(R, R, a, cache->modulus)) != 0)
+        if ((err = ecc_projective_dbl_point(R, R, cache->a, cache->modulus)) != 0)
             goto done;
 
         digit = wmnaf[j];
 
         if (digit) {
             if (digit > 0) {
-                if ((err = ecc_projective_madd(R, cache->pos[( digit / 2)], R, a, cache->modulus)) != 0)
+                if ((err = ecc_projective_madd(R, cache->pos[( digit / 2)], R, cache->a, cache->modulus)) != 0)
                     goto done;
             } else {
-                if ((err = ecc_projective_madd(R, cache->neg[(-digit / 2)], R, a, cache->modulus)) != 0)
+                if ((err = ecc_projective_madd(R, cache->neg[(-digit / 2)], R, cache->a, cache->modulus)) != 0)
                     goto done;
             }
         }

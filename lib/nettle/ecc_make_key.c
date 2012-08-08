@@ -45,7 +45,7 @@
 int
 ecc_make_key_ex (void *random_ctx, nettle_random_func random, ecc_key * key,
                  mpz_t prime, mpz_t order, mpz_t A, mpz_t B, mpz_t Gx, mpz_t Gy,
-                 gnutls_ecc_curve_t curve_id,int timing_res)
+                 gnutls_ecc_curve_t curve_id, int timing_res)
 {
   int err;
   ecc_point *base;

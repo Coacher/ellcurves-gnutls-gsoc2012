@@ -849,6 +849,7 @@ GNUTLS_PRIVATE {
     ecc_wmnaf_cache_init;
     ecc_wmnaf_cache_free;
     ecc_mulmod_wmnaf_cached;
+    ecc_mulmod_wmnaf_cached_lookup;
   local:
     *;
 };

@@ -228,6 +228,7 @@ int ecc_wmnaf_cache_init(void) {
     return _ecc_wmnaf_cache_array_init(&ecc_wmnaf_cache);
 }
 
+
 /*
    Perform a point multiplication utilizing cache
    @param k    The scalar to multiply by
@@ -307,4 +308,31 @@ ecc_mulmod_wmnaf_cached (mpz_t k, gnutls_ecc_curve_t id, ecc_point * R, mpz_t a,
 done:
     if (wmnaf) free(wmnaf);
     return err;
+}
+
+/*
+   Perform a point multiplication utilizing cache
+   This version will lookup for a needed cache first
+   This function's definition allow in-place substitution for ecc_mulmod
+   @param k    The scalar to multiply by
+   @param R    [out] Destination for kG
+   @param id   Curve's id
+   @return CRYPT_OK on success
+*/
+int
+ecc_mulmod_wmnaf_cached_lookup (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus, int map)
+{
+    int i, id;
+
+    if ( G == NULL || R == NULL )
+        return -1;
+
+    for (i = 0; (id = ecc_wmnaf_cache[i].id); ++i) {
+        if ( !(mpz_cmp(G->x, ecc_wmnaf_cache[i].pos[0]->x)) &&
+             !(mpz_cmp(G->y, ecc_wmnaf_cache[i].pos[0]->y))) {
+             break;
+        }
+    }
+
+    return ecc_mulmod_wmnaf_cached(k, id, R, a, modulus, map);
 }

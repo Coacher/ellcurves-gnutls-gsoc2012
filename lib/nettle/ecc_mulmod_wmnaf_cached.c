@@ -236,11 +236,7 @@ int ecc_wmnaf_cache_init(void) {
    @return CRYPT_OK on success
 */
 int
-#ifdef WMMAF_CACHED_USE_INTERNALS
-ecc_mulmod_wmnaf_cached (mpz_t k, ecc_point * R, gnutls_ecc_curve_t id, int map)
-#else
 ecc_mulmod_wmnaf_cached (mpz_t k, gnutls_ecc_curve_t id, ecc_point * R, mpz_t a, mpz_t modulus, int map)
-#endif
 {
     int j, err;
     
@@ -269,7 +265,7 @@ ecc_mulmod_wmnaf_cached (mpz_t k, gnutls_ecc_curve_t id, ecc_point * R, mpz_t a,
 
     /* perform ops */
     for (j = wmnaf_len - 1; j >= 0; --j) {
-#ifdef WMMAF_CACHED_USE_INTERNALS
+#ifdef WMNAF_CACHED_USE_INTERNALS
         if ((err = ecc_projective_dbl_point(R, R, cache->a, cache->modulus)) != 0)
 #else
         if ((err = ecc_projective_dbl_point(R, R, a, modulus)) != 0)
@@ -280,14 +276,14 @@ ecc_mulmod_wmnaf_cached (mpz_t k, gnutls_ecc_curve_t id, ecc_point * R, mpz_t a,
 
         if (digit) {
             if (digit > 0) {
-#ifdef WMMAF_CACHED_USE_INTERNALS
+#ifdef WMNAF_CACHED_USE_INTERNALS
                 if ((err = ecc_projective_madd(R, cache->pos[( digit / 2)], R, cache->a, cache->modulus)) != 0)
 #else
                 if ((err = ecc_projective_madd(R, cache->pos[( digit / 2)], R, a, modulus)) != 0)
 #endif
                     goto done;
             } else {
-#ifdef WMMAF_CACHED_USE_INTERNALS
+#ifdef WMNAF_CACHED_USE_INTERNALS
                 if ((err = ecc_projective_madd(R, cache->neg[(-digit / 2)], R, cache->a, cache->modulus)) != 0)
 #else
                 if ((err = ecc_projective_madd(R, cache->neg[(-digit / 2)], R, a, modulus)) != 0)
@@ -300,7 +296,7 @@ ecc_mulmod_wmnaf_cached (mpz_t k, gnutls_ecc_curve_t id, ecc_point * R, mpz_t a,
 
     /* map R back from projective space */
     if (map) {
-#ifdef WMMAF_CACHED_USE_INTERNALS
+#ifdef WMNAF_CACHED_USE_INTERNALS
         err = ecc_map(R, cache->modulus);
 #else
         err = ecc_map(R, modulus);

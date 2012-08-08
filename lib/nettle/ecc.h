@@ -145,11 +145,7 @@ int ecc_mulmod_wmnaf(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus
 /* cache-enabled wMNAF-based mulmod */
 int  ecc_wmnaf_cache_init(void);
 void ecc_wmnaf_cache_free(void);
-#ifdef WMMAF_CACHED_USE_INTERNALS
-int ecc_mulmod_wmnaf_cached (mpz_t k, ecc_point * R, gnutls_ecc_curve_t id, int map);
-#else
 int ecc_mulmod_wmnaf_cached (mpz_t k, gnutls_ecc_curve_t id, ecc_point * R, mpz_t a, mpz_t modulus, int map);
-#endif
 
 /* check if the given point is neutral point */
 int ecc_projective_isneutral(ecc_point *P, mpz_t modulus);

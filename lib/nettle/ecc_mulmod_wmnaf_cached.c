@@ -61,6 +61,7 @@ static void _ecc_wmnaf_cache_entry_free(gnutls_ecc_curve_cache_entry_t* p) {
     int i;
 
     mpz_clear(p->modulus);
+    mpz_clear(p->a);
 
     for(i = 0; i < PRECOMPUTE_LENGTH; ++i) {
         ecc_del_point(p->pos[i]);

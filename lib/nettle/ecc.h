@@ -140,7 +140,7 @@ int ecc_mulmod(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int 
 int ecc_mulmod_timing(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int map);
 
 /* wMNAF-based mulmod */
-signed char* ecc_wMNAF(mpz_t x, int w, size_t *ret_len);
+signed char* ecc_wMNAF(mpz_t x, unsigned int w, size_t *ret_len);
 int ecc_mulmod_wmnaf(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int map);
 
 /* cache-enabled wMNAF-based mulmod */

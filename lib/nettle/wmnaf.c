@@ -4,6 +4,32 @@
 
 #include "ecc.h"
 
+#define ABS(x) ((x) >= 0 ? (x) : -(x))
+
+/* A local replacement for mpz_tstbit.
+ * It is needed because for negative numbers original mpz_tstbit
+ * returns an infinite number of `1`s after all bits of input number.
+ * For positive numbers it returns zeros after all bits of input number.
+ * This function mimics mpz_tstbit behavior for positive numbers in both cases.
+ */
+static int
+mpz_unitstbit (mpz_srcptr u, mp_bitcnt_t bit_index) __GMP_NOTHROW
+{
+  mp_srcptr      u_ptr      = (u)->_mp_d;
+  mp_size_t      size       = (u)->_mp_size;
+  unsigned       abs_size   = ABS(size);
+  mp_size_t      limb_index = bit_index / GMP_NUMB_BITS;
+  mp_srcptr      p          = u_ptr + limb_index;
+  mp_limb_t      limb;
+
+  if (limb_index >= abs_size)
+    return (size < 0);
+
+  limb = *p;
+
+  return (limb >> (bit_index % GMP_NUMB_BITS)) & 1;
+}
+
 /* 
  * Return an array with wMNAF representation of given mpz_t number x
  * together with representation length.
@@ -17,7 +43,7 @@
  * Information Security and Cryptology – ICISC 2002, Springer-Verlag LNCS 2587, pp. 298–312
  */
 
-signed char* ecc_wMNAF(mpz_t x, int w, size_t *ret_len) {
+signed char* ecc_wMNAF(mpz_t x, unsigned int w, size_t *ret_len) {
     int window_val;
     signed char *ret = NULL;
     int sign = 1;
@@ -95,7 +121,7 @@ signed char* ecc_wMNAF(mpz_t x, int w, size_t *ret_len) {
         ret[j++] = sign * digit;
 
         window_val >>= 1;
-        window_val += bit * mpz_tstbit(x, j + w);
+        window_val += bit * mpz_unitstbit(x, j + w);
     }
 
     *ret_len = j;

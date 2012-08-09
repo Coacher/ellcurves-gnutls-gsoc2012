@@ -15,13 +15,12 @@ int main(void) {
     int i, j;
 
     mpz_init(x);
-    
+
     printf("\nRunning tests for ecc_wMNAF()\n\n");
 
     for (i = -MAX_NUM; i <= MAX_NUM; ++i) {
 
         mpz_set_si(x, i);
-        printf("x sign %i\n", mpz_sgn(x));
 
         wmnaf = ecc_wMNAF(x, WINSIZE, &wmnaf_len);
 

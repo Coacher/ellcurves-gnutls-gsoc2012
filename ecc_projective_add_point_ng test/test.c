@@ -1,104 +1,131 @@
 #include <stdlib.h> 
 #include <stdio.h> 
-#include <time.h>
 #include <gmp.h>
 
-#include "ecc.c"
-#include "my_ecc.h"
+#include "ecc.h"
+#include "ecc_point.h"
 
-#define NUM_OF_TRIES 10
+#define NUM_OF_TRIES_PER_CURVE 10
+
+#define MAP 1
 
 #define TEST_ROUTINE(RESULT, FUNC)                                \
 do {                                                              \
-    start = clock();                                              \
-    ecc_projective_add_point(R1, R2, Raddclas, a, modulus);       \
-    classic_time = ((double) (clock() - start)) / CLOCKS_PER_SEC; \
-    ecc_map(Raddclas, modulus);                                   \
-    start = clock();                                              \
+    ecc_projective_add_point(R1, R2, Rclassic, a, modulus);       \
+    ecc_map(Rclassic, modulus);                                   \
     FUNC(R1, R2, RESULT, a, modulus);                             \
-    ng_time = ((double) (clock() - start)) / CLOCKS_PER_SEC;      \
     ecc_map(RESULT, modulus);                                     \
-    check = (!mpz_cmp(Raddclas->x, RESULT->x)) && (!mpz_cmp(Raddclas->y, RESULT->y));             \
-    printf("    Classic time: %.15f; NG time: %.15f; Check: %i\n", classic_time, ng_time, check); \
+    check = (!mpz_cmp(Rclassic->x, RESULT->x)) && (!mpz_cmp(Rclassic->y, RESULT->y)); \
+    printf("check: %i\n", check);                                 \
 } while(0)
 
 int main(void) {
+
     mpz_t k, a, modulus;
-    ecc_point *G, *R1, *R2, *Raddclas;
-    ecc_point *Raddng_gen, *Raddng_Zs_equal, *Raddng_Zs_equal_one, *Raddng_Z2_is_one;
-    int map = 1;
+    ecc_point *G, *R1, *R2, *Rclassic;
+    ecc_point *Raddng, *Rmadd;
 
     int rand1, rand2, i;
-
-    clock_t start;
-    double ng_time, classic_time;
-
     char check;
 
     mpz_inits(k, a, modulus, NULL);
 
-    G = ecc_new_point();
-    R1 = ecc_new_point();
-    R2 = ecc_new_point();
-    Raddclas = ecc_new_point();
-    Raddng_gen = ecc_new_point();
-    Raddng_Zs_equal = ecc_new_point();
-    Raddng_Zs_equal_one = ecc_new_point();
-    Raddng_Z2_is_one = ecc_new_point();
+    G          = ecc_new_point();
+    R1         = ecc_new_point();
+    R2         = ecc_new_point();
+    Rclassic   = ecc_new_point();
+    Raddng     = ecc_new_point();
+    Rmadd      = ecc_new_point();
     
+    printf("\nRunning tests for ecc_projective_add_point_ng() and ecc_projective_madd()\n\n");
+
     GNUTLS_ECC_CURVE_LOOP (
-        printf("Running test sequence for curve %s\n", p->name);
+        printf("Running test sequence for curve %s with id:%i\n", p->name, p->id);
 
         mpz_set_str(G->x,    p->Gx,     16);
         mpz_set_str(G->y,    p->Gy,     16);
         mpz_set_ui (G->z,    1);
 
         mpz_set_str(modulus, p->prime,  16);
-        mpz_set_si(a, -3);
+        mpz_set_str(a,       p->A,      16);
 
-        for (i = 0; i < NUM_OF_TRIES; ++i) {
+        for (i = 0; i < NUM_OF_TRIES_PER_CURVE; ++i) {
             rand1 = random();
             rand2 = random();
-            printf("Testing for m = %i, n = %i\n", rand1, rand2);
+            printf("Testing r1 = %-i, r2 = %-i:\n", rand1, rand2);
 
             mpz_set_ui(k, rand1);
-            ecc_mulmod_wmnaf(k, G, R1, a, modulus, map);
-            
+            ecc_mulmod_wmnaf(k, G, R1, a, modulus, MAP);
+
             mpz_set_ui(k, rand2);
-            ecc_mulmod_wmnaf(k, G, R2, a, modulus, map);
-/*            
-            printf("  Testing special case Z1 == Z2 == 1\n");
-            ecc_map(R1, modulus);
-            ecc_map(R2, modulus);
-            TEST_ROUTINE(Raddng_Zs_equal_one);
-*/
-            printf("  Testing special case Z1 != 1, Z2 == 1\n");
+            ecc_mulmod_wmnaf(k, G, R2, a, modulus, MAP);
+
+            printf("\tTesting madd\t\t");
+            /* make Z1 != 1 */
             mpz_mul_ui(R1->z, R1->z, rand1);
             mpz_mul_ui(R1->x, R1->x, rand1*rand1);
             mpz_mul_ui(R1->y, R1->y, rand1*rand1*rand1);
-            TEST_ROUTINE(Raddng_Z2_is_one, ecc_projective_madd);
-/*
-            printf("  Testing special case Z1 == Z2 != 1\n");
-            mpz_mul_ui(R2->z, R2->z, rand1);
-            mpz_mul_ui(R2->x, R2->x, rand1*rand1);
-            mpz_mul_ui(R2->y, R2->y, rand1*rand1*rand1);
-            TEST_ROUTINE(Raddng_Zs_equal);
-*/
-            printf("  Testing general case\n");
-            mpz_mul_ui(R1->z, R1->z, rand2);
-            mpz_mul_ui(R1->x, R1->x, rand2*rand2);
-            mpz_mul_ui(R1->y, R1->y, rand2*rand2*rand2);
-            TEST_ROUTINE(Raddng_gen, ecc_projective_add_point_ng);
-        }
+            TEST_ROUTINE(Rmadd, ecc_projective_madd);
 
+            printf("\tTesting add_point_ng\t");
+            /* make Z2 != 1 */
+            mpz_mul_ui(R2->z, R2->z, rand2);
+            mpz_mul_ui(R2->x, R2->x, rand2*rand2);
+            mpz_mul_ui(R2->y, R2->y, rand2*rand2*rand2);
+            TEST_ROUTINE(Raddng, ecc_projective_add_point_ng);
+        }
         printf("\n");
     );
+    printf("\nDoing sanity checks for ecc_projective_add_point_ng() and ecc_projective_madd()\n");
+    printf("Nothing will be printed out, but the test utility should't crash.\n");
 
-    ecc_del_point(Raddng_Z2_is_one);
-    ecc_del_point(Raddng_Zs_equal_one);
-    ecc_del_point(Raddng_Zs_equal);
-    ecc_del_point(Raddng_gen);
-    ecc_del_point(Raddclas);
+    mpz_set_ui(R1->x,    1);
+    mpz_set_ui(R1->y,    1);
+    mpz_set_ui(R1->z,    1);
+    ecc_projective_add_point_ng (G, R1, R2,  a, modulus);
+    ecc_projective_madd         (G, R1, R2,  a, modulus);
+
+    mpz_set_ui(R1->x,    1);
+    mpz_set_ui(R1->y,    1);
+    mpz_set_ui(R1->z,    0);
+    ecc_projective_add_point_ng (G, R1, R2,  a, modulus);
+    ecc_projective_madd         (G, R1, R2,  a, modulus);
+
+    mpz_set_ui(R1->x,    1);
+    mpz_set_ui(R1->y,    0);
+    mpz_set_ui(R1->z,    0);
+    ecc_projective_add_point_ng (G, R1, R2,  a, modulus);
+    ecc_projective_madd         (G, R1, R2,  a, modulus);
+
+    mpz_set_ui(R1->x,    0);
+    mpz_set_ui(R1->y,    1);
+    mpz_set_ui(R1->z,    0);
+    ecc_projective_add_point_ng (G, R1, R2,  a, modulus);
+    ecc_projective_madd         (G, R1, R2,  a, modulus);
+
+    mpz_set_ui(R1->x,    0);
+    mpz_set_ui(R1->y,    0);
+    mpz_set_ui(R1->z,    1);
+    ecc_projective_add_point_ng (G, R1, R2,  a, modulus);
+    ecc_projective_madd         (G, R1, R2,  a, modulus);
+
+    mpz_set_ui(R1->x,    0);
+    mpz_set_ui(R1->y,    0);
+    mpz_set_ui(R1->z,    0);
+    ecc_projective_add_point_ng (G, R1, R2,  a, modulus);
+    ecc_projective_madd         (G, R1, R2,  a, modulus);
+
+    mpz_set_ui(R1->x,    100);
+    mpz_set_ui(R1->y,    200);
+    mpz_set_ui(R1->z,    300);
+    ecc_projective_add_point_ng (G, R1, R2,  a, modulus);
+    ecc_projective_madd         (G, R1, R2,  a, modulus);
+
+    printf("Sanity checks successfully passed.\n");
+
+    ecc_del_point(Rmadd);
+    ecc_del_point(Raddng);
+    ecc_del_point(Rclassic);
     ecc_del_point(R2);
     ecc_del_point(R1);
     ecc_del_point(G);

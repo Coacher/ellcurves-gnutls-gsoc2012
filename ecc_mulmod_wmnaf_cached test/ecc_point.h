@@ -1,5 +1,5 @@
-#ifndef _MY_ECC_H
-#define _MY_ECC_H
+#ifndef __ECC_POINT_H
+#define __ECC_POINT_H
 
 /** A point on a ECC curve, stored in Jacbobian format such that (x,y,z) => (x/z^2, y/z^3, 1) when interpretted as affine */
 typedef struct {
@@ -18,4 +18,5 @@ void mp_clear_multi(mpz_t *a, ...);
 
 ecc_point *ecc_new_point (void);
 void ecc_del_point (ecc_point * p);
+
 #endif

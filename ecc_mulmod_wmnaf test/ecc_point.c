@@ -2,9 +2,10 @@
 #include <stdarg.h>
 #include <gmp.h>
 
-#include "my_ecc.h"
+#include "ecc_point.h"
 
 /* copied from lib/nettle */
+
 int mp_init_multi(mpz_t *a, ...)
 {
    mpz_t    *cur = a;
@@ -36,7 +37,7 @@ void mp_clear_multi(mpz_t *a, ...)
 
 /*
    Allocate a new ECC point
-   @return A newly allocated point or NULL on error 
+   @return A newly allocated point or NULL on error
 */
 ecc_point *
 ecc_new_point (void)

@@ -838,6 +838,7 @@ GNUTLS_PRIVATE {
     _gnutls_pkcs12_string_to_key;
     _gnutls_bin2hex;
     # Internal symbols needed for wmnaf testing:
+    ecc_wMNAF;
     ecc_mulmod;
     ecc_mulmod_wmnaf;
     # Internal symbols needed for add_point_ng testing:

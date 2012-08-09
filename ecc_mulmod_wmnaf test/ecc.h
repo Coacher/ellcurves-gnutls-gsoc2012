@@ -20,6 +20,8 @@
  *
  */
 
+/* copied from lib/includes/gnutls/gnutls.h.in */
+
 /**
  * gnutls_ecc_curve_t:
  * @GNUTLS_ECC_CURVE_INVALID: Cannot be known
@@ -40,6 +42,8 @@ typedef enum
   GNUTLS_ECC_CURVE_SECP521R1,
   GNUTLS_ECC_CURVE_SECP192R1,
 } gnutls_ecc_curve_t;
+
+/* copied lib/algorithms.h */
 
 /* ECC */
 struct gnutls_ecc_curve_entry_st
@@ -65,12 +69,14 @@ struct gnutls_ecc_curve_entry_st
 };
 typedef struct gnutls_ecc_curve_entry_st gnutls_ecc_curve_entry_st;
 
+/* copied from lib/algorithms/ecc.c */
+
 /* Supported ECC curves
  */
 
 static const gnutls_ecc_curve_entry_st ecc_curves[] = {
   {
-    .name = "SECP192R1", 
+    .name = "SECP192R1",
     .oid = "1.2.840.10045.3.1.1",
     .id = GNUTLS_ECC_CURVE_SECP192R1,
     .tls_id = 19,
@@ -83,7 +89,7 @@ static const gnutls_ecc_curve_entry_st ecc_curves[] = {
     .Gy =    "07192B95FFC8DA78631011ED6B24CDD573F977A11E794811"
   },
   {
-    .name = "SECP224R1", 
+    .name = "SECP224R1",
     .oid = "1.3.132.0.33",
     .id = GNUTLS_ECC_CURVE_SECP224R1,
     .tls_id = 21,
@@ -96,7 +102,7 @@ static const gnutls_ecc_curve_entry_st ecc_curves[] = {
     .Gy =    "BD376388B5F723FB4C22DFE6CD4375A05A07476444D5819985007E34",
   },
   {
-    .name = "SECP256R1", 
+    .name = "SECP256R1",
     .oid = "1.2.840.10045.3.1.7",
     .id = GNUTLS_ECC_CURVE_SECP256R1,
     .tls_id = 23,

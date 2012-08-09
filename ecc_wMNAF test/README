@@ -1,5 +1,4 @@
-`test.c` file contains a test utility for ecc_projective_add_point_ng()
-and ecc_projective_madd() functions.
+`test.c` file contains a test utility for ecc_wMNAF() function.
 
 It requires GMP to work and should be compiled with `-lgmp` flag.
 

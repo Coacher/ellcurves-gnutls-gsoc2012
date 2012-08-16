@@ -35,8 +35,8 @@ mpz_unitstbit (mpz_srcptr u, mp_bitcnt_t bit_index) __GMP_NOTHROW
  * Return an array with wMNAF representationtogether with its length.
  *
  * The result is the array with elements from the set {0, +-1, +-3, +-5, ..., +-(2^w - 1)}
- * such that at most one of any w consecutive digits is non-zero
- * with exception for the the most significant w bits.
+ * such that at most one of any (w + 1) consecutive digits is non-zero
+ * with exception for the the most significant (w + 1) bits.
  * With the last property it is modified version of wNAF.
  * Overview of this algorithm can be found, for exmaple, in
  * Bodo Moller, Improved Techniques for Fast Exponentiation.
@@ -100,8 +100,7 @@ signed char* ecc_wMNAF(mpz_t x, unsigned int w, size_t* wmnaf_len) {
             b = 0;
         }
 
-        ret[i] = sign * b;
-        ++i;
+        ret[i++] = sign * b;
 
         /* fill c with next LSB */
         c >>= 1;

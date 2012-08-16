@@ -107,7 +107,15 @@ signed char* ecc_wMNAF(mpz_t x, unsigned int w, size_t* wmnaf_len) {
         c += basew * mpz_unitstbit(x, i + w);
     }
 
-    *wmnaf_len = i;
+    *wmnaf_len = i--;
+
+    /* modified wNAF */
+    if ((ret[i] == 1) && (ret[i-w-1] < 0)) {
+        ret[i-w-1] += basew;
+        ret[i-1] = 1;
+        ret[i] = 0;
+        *wmnaf_len = i;
+    }
 done:
     return ret;
 }

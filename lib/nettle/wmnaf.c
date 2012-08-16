@@ -30,7 +30,7 @@ mpz_unitstbit (mpz_srcptr u, mp_bitcnt_t bit_index) __GMP_NOTHROW
   return (limb >> (bit_index % GMP_NUMB_BITS)) & 1;
 }
 
-/* 
+/*
  * Return an array with wMNAF representation of given mpz_t number x
  * together with representation length.
  * The result is the array with elements from the set {0, +-1, +-3, +-5, ..., +-(2^w - 1)}
@@ -44,6 +44,7 @@ mpz_unitstbit (mpz_srcptr u, mp_bitcnt_t bit_index) __GMP_NOTHROW
  */
 
 signed char* ecc_wMNAF(mpz_t x, unsigned int w, size_t *ret_len) {
+#if 0
     int window_val;
     signed char *ret = NULL;
     int sign = 1;
@@ -126,4 +127,50 @@ signed char* ecc_wMNAF(mpz_t x, unsigned int w, size_t *ret_len) {
 
     *ret_len = j;
     return ret;
+#endif
+    signed char *ret = NULL;
+    int sign = 1;
+    int mask = (1 << (w + 1)) - 1;
+    size_t len = 0, j;
+    mpz_t c;
+
+    if (!(sign = mpz_sgn(x))) {
+        /* x == 0 */
+        ret = malloc(1);
+        if (!ret) {
+            fprintf(stderr, "Unable to allocate memory for wMOF repr.\n");
+            return NULL;
+        }
+
+        ret[0] = 0;
+        *ret_len = 1;
+        return ret;
+    }
+
+    len = mpz_sizeinbase(x, 2);
+    /* wMNAF may be one digit longer than binary representation
+     * (*ret_len will be set to the actual length, i.e. at most
+     * mpz_sizeinbase(x, 2) + 1) */
+    ret = malloc(len + 1);
+
+    if (!ret) {
+        fprintf(stderr, "Unable to allocate memory for wMNAF repr.\n");
+        return NULL;
+    }
+
+    mpz_init(c);
+    mpz_abs(c, x);
+    j = 0;
+
+    while( j > w ) {
+
+        if ( bit == next_bit ) {
+            ret[j] = 0;
+            --j;
+        } else {
+            j -= w;
+        }
+
+        next_bit = bit;
+        bit = mpz_unitstbit(x, j);
 }

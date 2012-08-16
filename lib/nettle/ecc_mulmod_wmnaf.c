@@ -1,6 +1,8 @@
 /*
  * Copyright (C) 2011-2012 Free Software Foundation, Inc.
  *
+ * Author: Ilya Tumaykin
+ *
  * This file is part of GNUTLS.
  *
  * The GNUTLS library is free software; you can redistribute it and/or
@@ -25,20 +27,21 @@
     #define WINSIZE 4
 #endif
 
-/* length of one array of precomputed values for ecc_mulmod_wmnaf 
+/* length of single array of precomputed values for ecc_mulmod_wmnaf
  * we have two such arrays for positive and negative multipliers */
 #ifndef PRECOMPUTE_LENGTH
     #define PRECOMPUTE_LENGTH (1 << (WINSIZE - 1))
 #endif
 
 /*
-   Perform a point multiplication using wMNAF repr.
+   Perform a point multiplication using wMNAF representation
    @param k    The scalar to multiply by
    @param G    The base point
    @param R    [out] Destination for kG
+   @param a        The curve's A value
    @param modulus  The modulus of the field the ECC curve is in
    @param map      Boolean whether to map back to affine or not (1 == map, 0 == leave in projective)
-   @return CRYPT_OK on success
+   @return     GNUTLS_E_SUCCESS on success
 */
 int
 ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
@@ -52,7 +55,7 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
     signed char digit;
 
     if (k == NULL || G == NULL || R == NULL || modulus == NULL)
-        return -1;
+        return GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
 
     /* alloc ram for precomputed values */
     for (i = 0; i < PRECOMPUTE_LENGTH; ++i) {
@@ -64,7 +67,7 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
               ecc_del_point(neg[j]);
             }
 
-            return -1;
+            return GNUTLS_E_MEMORY_ERROR;
         }
     }
 
@@ -103,7 +106,7 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
     /* calculate wMNAF */
     wmnaf = ecc_wMNAF(k, WINSIZE, &wmnaf_len);
     if (!wmnaf) {
-        err = -2;
+        err = GNUTLS_E_INTERNAL_ERROR;
         goto done;
     }
 
@@ -113,7 +116,7 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
     mpz_set_ui(R->x, 1);
     mpz_set_ui(R->y, 1);
     mpz_set_ui(R->z, 0);
-   
+
     /* perform ops */
     for (j = wmnaf_len - 1; j >= 0; --j) {
         if ((err = ecc_projective_dbl_point(R, R, a, modulus)) != 0)
@@ -137,7 +140,7 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
     if (map) {
         err = ecc_map(R, modulus);
     } else {
-        err = 0;
+        err = GNUTLS_E_SUCCESS;
     }
 done:
     for (i = 0; i < PRECOMPUTE_LENGTH; ++i) {

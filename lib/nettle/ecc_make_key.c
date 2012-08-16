@@ -38,6 +38,7 @@
   @param A            The "a" parameter of the curve
   @param Gx           The x coordinate of the base point
   @param Gy           The y coordinate of the base point
+  @param curve_id     The id of the curve we are working with
   @timing_res         If non zero the function will try to return in constant time.
   @return 0 if successful, upon error all allocated memory will be freed
 */

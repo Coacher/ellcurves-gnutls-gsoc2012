@@ -43,134 +43,71 @@ mpz_unitstbit (mpz_srcptr u, mp_bitcnt_t bit_index) __GMP_NOTHROW
  * Information Security and Cryptology – ICISC 2002, Springer-Verlag LNCS 2587, pp. 298–312
  */
 
-signed char* ecc_wMNAF(mpz_t x, unsigned int w, size_t *ret_len) {
-#if 0
-    int window_val;
+signed char* ecc_wMNAF(mpz_t x, unsigned int w, size_t *wmnaf_len) {
+    int wbits, sign = 1;
+    unsigned int len = 0, i;
+    int basew = 1 << w; /* 2^w */
+    int baseww = 1 << (w + 1); /* 2^(w+1) */
+    /* mask to get (w + 1) LSB */
+    int mask = baseww - 1;
     signed char *ret = NULL;
-    int sign = 1;
-    int bit, next_bit, mask;
-    size_t len = 0, j;
 
     if (!(sign = mpz_sgn(x))) {
         /* x == 0 */
         ret = malloc(1);
-        if (!ret) {
-            fprintf(stderr, "Unable to allocate memory for wMNAF repr.\n");
-            return NULL;
-        }
+        if (ret == NULL)
+            goto done;
 
         ret[0] = 0;
-        *ret_len = 1;
-        return ret;
+        *wmnaf_len = 1;
+        goto done;
     }
 
-#ifdef __WITH_EXTRA_SANITY_CHECKS
-    if (w <= 0 || w > 7) {
-        fprintf(stderr, "`signed char` can represent integers with absolute values less than 2^7.\n");
-        return NULL;
-    }
-#endif
-
-    /* 2^w, at most 128 */
-    bit = 1 << w; 
-    /* 2^(w + 1), at most 256 */
-    next_bit = bit << 1;
-    /* 2^(w + 1) - 1, at most 255 */
-    mask = next_bit - 1;
-
+    /* get number of bits */
     len = mpz_sizeinbase(x, 2);
-    /* wMNAF may be one digit longer than binary representation
-     * (*ret_len will be set to the actual length, i.e. at most
-     * mpz_sizeinbase(x, 2) + 1) */
+
+    /* wMNAF is at most (len + 1) bits long */
     ret = malloc(len + 1);
+    if (ret == NULL)
+        goto done;
 
-    if (!ret) {
-        fprintf(stderr, "Unable to allocate memory for wMNAF repr.\n");
-        return NULL;
-    }
+    /* get (w + 1) LSB */
+    wbits = (mpz_getlimbn(x, 0)) & mask;
 
-    window_val = (mpz_getlimbn(x, 0)) & mask;
-    j = 0;
+    /* how many bits we already processed */
+    i = 0;
 
-    /* if (j + w + 1) >= len, window_val will not increase */
-    while ((window_val != 0) || (j + w + 1 < len)) {
-        int digit = 0;
+    while ((wbits != 0) || (i + w + 1 < len)) {
+        int b = 0;
 
-        /* 0 <= window_val <= 2^(w+1) */
+        if (wbits & 1) {
+            /* LSB == 1 */
+            if (wbits >= basew ) {
+                /* wbits >= 2^w */
+                b = wbits - baseww;
 
-        if (window_val & 1) {
-            /* 0 < window_val < 2^(w+1) */
-
-            if (window_val & bit) {
-                digit = window_val - next_bit; /* -2^w < digit < 0 */
-
-                if (j + w + 1 >= len) {
-                    /* special case for generating modified wNAFs:
-                     * no new bits will be added into window_val,
-                     * so using a positive digit here will decrease
-                     * the total length of the representation */
-
-                    digit = window_val & (mask >> 1); /* 0 < digit < 2^w */
+                if (i + w + 1 >= len) {
+                    /* this pack of bits will be last
+                     * do modified wNAF
+                     * i.e make it 2^w complement */
+                    b = wbits & (mask >> 1);
                 }
             } else {
-                digit = window_val; /* 0 < digit < 2^w */
+                b = wbits;
             }
 
-            window_val -= digit;
+            wbits -= b;
         }
 
-        ret[j++] = sign * digit;
+        ret[i++] = sign * b;
 
-        window_val >>= 1;
-        window_val += bit * mpz_unitstbit(x, j + w);
+        /* get next (w + 1) LSB */
+        wbits >>= 1;
+        wbits += basew * mpz_unitstbit(x, i + w);
     }
 
-    *ret_len = j;
+    *wmnaf_len = i;
+
+done:
     return ret;
-#endif
-    signed char *ret = NULL;
-    int sign = 1;
-    int mask = (1 << (w + 1)) - 1;
-    size_t len = 0, j;
-    mpz_t c;
-
-    if (!(sign = mpz_sgn(x))) {
-        /* x == 0 */
-        ret = malloc(1);
-        if (!ret) {
-            fprintf(stderr, "Unable to allocate memory for wMOF repr.\n");
-            return NULL;
-        }
-
-        ret[0] = 0;
-        *ret_len = 1;
-        return ret;
-    }
-
-    len = mpz_sizeinbase(x, 2);
-    /* wMNAF may be one digit longer than binary representation
-     * (*ret_len will be set to the actual length, i.e. at most
-     * mpz_sizeinbase(x, 2) + 1) */
-    ret = malloc(len + 1);
-
-    if (!ret) {
-        fprintf(stderr, "Unable to allocate memory for wMNAF repr.\n");
-        return NULL;
-    }
-
-    mpz_init(c);
-    mpz_abs(c, x);
-    j = 0;
-
-    while( j > w ) {
-
-        if ( bit == next_bit ) {
-            ret[j] = 0;
-            --j;
-        } else {
-            j -= w;
-        }
-
-        next_bit = bit;
-        bit = mpz_unitstbit(x, j);
 }

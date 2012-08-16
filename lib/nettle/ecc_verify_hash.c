@@ -46,6 +46,7 @@
    @param hashlen     The length of the hash (octets)
    @param stat        Result of signature, 1==valid, 0==invalid
    @param key         The corresponding public ECC key
+   @param curve_id    The id of the curve we are working with
    @return 0 if successful (even if the signature is not valid)
 */
 int

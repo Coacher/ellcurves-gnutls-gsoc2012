@@ -38,6 +38,7 @@
   @param prng      An active PRNG state
   @param wprng     The index of the PRNG you wish to use
   @param key       A private ECC key
+  @param curve_id  The id of the curve we are working with
   @return 0 if successful
 */
 int

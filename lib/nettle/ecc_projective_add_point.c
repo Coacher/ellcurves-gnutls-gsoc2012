@@ -68,7 +68,7 @@ ecc_projective_add_point (ecc_point * P, ecc_point * Q, ecc_point * R,
           mp_clear_multi (&t1, &t2, &x, &y, &z, NULL);
           return ecc_projective_dbl_point (P, R, a, modulus);
         }
-      
+
       mpz_sub (t1, modulus, Q->y);
       if (mpz_cmp (P->y, t1) == 0)
         {
@@ -79,7 +79,7 @@ ecc_projective_add_point (ecc_point * P, ecc_point * Q, ecc_point * R,
           return 0;
         }
     }
-  
+
   if (!ecc_projective_isneutral(Q, modulus)) {
     /* P + Q = P + neutral = P */
 
@@ -89,7 +89,7 @@ ecc_projective_add_point (ecc_point * P, ecc_point * Q, ecc_point * R,
 
     return 0;
   }
-  
+
   if (!ecc_projective_isneutral(P, modulus)) {
     /* P + Q = neutral + Q = Q */
 
@@ -99,7 +99,7 @@ ecc_projective_add_point (ecc_point * P, ecc_point * Q, ecc_point * R,
 
     return 0;
   }
-  
+
   mpz_set (x, P->x);
   mpz_set (y, P->y);
   mpz_set (z, P->z);

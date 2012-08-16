@@ -1,6 +1,8 @@
 /*
  * Copyright (C) 2011-2012 Free Software Foundation, Inc.
  *
+ * Author: Ilya Tumaykin
+ *
  * This file is part of GNUTLS.
  *
  * The GNUTLS library is free software; you can redistribute it and/or
@@ -61,8 +63,9 @@
    @param R        [out] The destination of the double
    @param a        Curve's a value
    @param modulus  The modulus of the field the ECC curve is in
-   @return 0 on success
-   Note: this function will work when a != -3.
+   @return         GNUTLS_E_SUCCESS on success
+
+   Note: this function WILL work when a != -3.
    It will work in general case without a change.
 */
 int
@@ -73,7 +76,7 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
     int err;
 
     if (P == NULL || Q == NULL || R == NULL || modulus == NULL)
-        return -1;
+        return GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
 
     /* check all special cases first */
 
@@ -85,7 +88,7 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
         mpz_set (R->y, P->y);
         mpz_set (R->z, P->z);
 
-        return 0;
+        return GNUTLS_E_SUCCESS;
     }
 
     if (!ecc_projective_isneutral(P, modulus)) {
@@ -95,7 +98,7 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
         mpz_set (R->y, Q->y);
         mpz_set (R->z, Q->z);
 
-        return 0;
+        return GNUTLS_E_SUCCESS;
     }
 
     if ((err = mp_init_multi (&Z1Z1, &Z2Z2, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL)) != 0 )
@@ -120,7 +123,7 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
             mpz_set_ui(R->x, 1);
             mpz_set_ui(R->y, 1);
             mpz_set_ui(R->z, 0);
-            return 0;
+            return GNUTLS_E_SUCCESS;
         }
     }
 
@@ -164,7 +167,7 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
         mpz_set_ui (R->z, 0);
         mp_clear_multi (&Z1Z1, &Z2Z2, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
 
-        return 0;
+        return GNUTLS_E_SUCCESS;
     }
 #else
     if (mpz_cmp_ui (H, 0) < 0) {
@@ -249,7 +252,7 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
 
     mp_clear_multi (&Z1Z1, &Z2Z2, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
 
-    return 0;
+    return GNUTLS_E_SUCCESS;
 }
 
 /*
@@ -271,7 +274,7 @@ ecc_projective_madd (ecc_point * P, ecc_point * Q, ecc_point * R,
     int err;
 
     if (P == NULL || Q == NULL || R == NULL || modulus == NULL)
-        return -1;
+        return GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
 
     /* check all special cases first */
 
@@ -284,7 +287,7 @@ ecc_projective_madd (ecc_point * P, ecc_point * Q, ecc_point * R,
         mpz_set (R->y, Q->y);
         mpz_set (R->z, Q->z);
 
-        return 0;
+        return GNUTLS_E_SUCCESS;
     }
 
     if ((err = mp_init_multi (&Z1Z1, &S1, &H, &J, &r, &V, &t0, &t1, NULL)) != 0 )
@@ -309,7 +312,7 @@ ecc_projective_madd (ecc_point * P, ecc_point * Q, ecc_point * R,
             mpz_set_ui(R->x, 1);
             mpz_set_ui(R->y, 1);
             mpz_set_ui(R->z, 0);
-            return 0;
+            return GNUTLS_E_SUCCESS;
         }
     }
 
@@ -336,7 +339,7 @@ ecc_projective_madd (ecc_point * P, ecc_point * Q, ecc_point * R,
         mpz_set_ui (R->z, 0);
         mp_clear_multi (&Z1Z1, &S1, &H, &J, &r, &V, &t0, &t1, NULL);
 
-        return 0;
+        return GNUTLS_E_SUCCESS;
     }
 #else
     if (mpz_cmp_ui (H, 0) < 0)
@@ -423,5 +426,5 @@ ecc_projective_madd (ecc_point * P, ecc_point * Q, ecc_point * R,
 
     mp_clear_multi (&Z1Z1, &S1, &H, &J, &r, &V, &t0, &t1, NULL);
 
-    return 0;
+    return GNUTLS_E_SUCCESS;
 }

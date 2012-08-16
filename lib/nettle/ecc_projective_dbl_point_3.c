@@ -27,7 +27,7 @@
 /*
   @file ecc_projective_dbl_point.c
   ECC Crypto, Tom St Denis
-*/  
+*/
 
 #ifdef ECC_SECP_CURVES_ONLY
 
@@ -157,7 +157,7 @@ ecc_projective_dbl_point (ecc_point * P, ecc_point * R, mpz_t a /* a is -3 */,
         mpz_add( R->y, R->y, modulus);
      }
 
-     err = 0;
+     err = GNUTLS_E_SUCCESS;
 
      mp_clear_multi(&t1, &t2, NULL);
      return err;
@@ -167,7 +167,7 @@ ecc_projective_dbl_point (ecc_point * P, ecc_point * R, mpz_t a /* a is -3 */,
      mpz_set_ui(R->y, 1);
      mpz_set_ui(R->z, 0);
 
-     return 0;
+     return GNUTLS_E_SUCCESS;
    }
 }
 #endif

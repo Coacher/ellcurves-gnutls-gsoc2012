@@ -1,6 +1,8 @@
 /*
  * Copyright (C) 2011-2012 Free Software Foundation, Inc.
  *
+ * Author: Ilya Tumaykin
+ *
  * This file is part of GNUTLS.
  *
  * The GNUTLS library is free software; you can redistribute it and/or
@@ -21,12 +23,12 @@
 #include "ecc.h"
 
 /*
-   Check if the given point is the neutral point.
+   Check if the given point is the neutral point
    @param P        The point to check
    @param modulus  The modulus of the field the ECC curve is in
-   @return  0 if given point == neutral point
-   @return  1 if given point != neutral point
-   @return -1 otherwise
+   @return         0 if given point is a neutral point
+   @return         1 if given point not a neutral point
+   @return         negative value in case of error
 */
 int
 ecc_projective_isneutral (ecc_point * P, mpz_t modulus)
@@ -35,9 +37,10 @@ ecc_projective_isneutral (ecc_point * P, mpz_t modulus)
   int err;
 
   if (P == NULL)
-    return -1;
+    return GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
 
-  /* neutral point is a point with projective
+  /*
+   * neutral point is a point with projective
    * coordinates (x,y,0) such that y^2 == x^3
    * excluding point (0,0,0)
    */
@@ -47,7 +50,7 @@ ecc_projective_isneutral (ecc_point * P, mpz_t modulus)
 
   if ((err = mp_init_multi (&t1, &t2, NULL)) != 0)
   {
-    return -1;
+    return err;
   }
 
   /* t1 == x^3 */
@@ -59,7 +62,7 @@ ecc_projective_isneutral (ecc_point * P, mpz_t modulus)
   mpz_mul (t2, P->y, P->y);
   mpz_mod (t2, t2, modulus);
 
-  if ( (!mpz_cmp(t1, t2)) && (mpz_sgn(P->x)) ) {
+  if ( (!mpz_cmp(t1, t2)) && (mpz_sgn(t1)) ) {
       /* Z == 0 and X^3 == Y^2 != 0
        * it is neutral */
       err = 0;
@@ -69,7 +72,7 @@ ecc_projective_isneutral (ecc_point * P, mpz_t modulus)
   /* Z == 0 and X^3 != Y^2 or
    * Z == X == Y == 0
    * this should never happen */
-  err = -1;
+  err = GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
   goto done;
 done:
   mp_clear_multi (&t1, &t2, NULL);

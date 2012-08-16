@@ -1,6 +1,8 @@
 /*
  * Copyright (C) 2011-2012 Free Software Foundation, Inc.
  *
+ * Author: Ilya Tumaykin
+ *
  * This file is part of GNUTLS.
  *
  * The GNUTLS library is free software; you can redistribute it and/or
@@ -25,14 +27,14 @@
    @param P        The point to negate
    @param R        [out] The destination of the negate
    @param modulus  The modulus of the field the ECC curve is in
-   @return 0 on success
+   @return         GNUTLS_E_SUCCESS on success
 */
 int
 ecc_projective_negate_point (ecc_point * P, ecc_point * R, mpz_t modulus)
 {
 
   if (P == NULL || R == NULL)
-    return -1;
+    return GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
 
   if (ecc_projective_isneutral(P, modulus)) {
       /* we set R.y to (modulus - P.y) to avoid negative coordinates */
@@ -46,5 +48,5 @@ ecc_projective_negate_point (ecc_point * P, ecc_point * R, mpz_t modulus)
       mpz_set_ui(R->z, 0);
   }
 
-  return 0;
+  return GNUTLS_E_SUCCESS;
 }

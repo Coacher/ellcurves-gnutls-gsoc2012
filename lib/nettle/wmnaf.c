@@ -6,7 +6,8 @@
 
 #define ABS(x) ((x) >= 0 ? (x) : -(x))
 
-/* A local replacement for mpz_tstbit.
+/*
+ * A local replacement for mpz_tstbit.
  * It is needed because for negative numbers original mpz_tstbit
  * returns an infinite number of `1`s after all bits of input number.
  * For positive numbers it returns zeros after all bits of input number.
@@ -31,25 +32,33 @@ mpz_unitstbit (mpz_srcptr u, mp_bitcnt_t bit_index) __GMP_NOTHROW
 }
 
 /*
- * Return an array with wMNAF representation of given mpz_t number x
- * together with representation length.
+ * Return an array with wMNAF representationtogether with its length.
+ *
  * The result is the array with elements from the set {0, +-1, +-3, +-5, ..., +-(2^w - 1)}
- * such that at most one of any (w + 1) consecutive digits is non-zero
- * with exception for the the most significant (w+1) bits.
+ * such that at most one of any w consecutive digits is non-zero
+ * with exception for the the most significant w bits.
  * With the last property it is modified version of wNAF.
- * Based on OpenSSL version of this function.
- * Overview of this algorithm can be found in
+ * Overview of this algorithm can be found, for exmaple, in
  * Bodo Moller, Improved Techniques for Fast Exponentiation.
  * Information Security and Cryptology – ICISC 2002, Springer-Verlag LNCS 2587, pp. 298–312
  */
+/*
+   @param x        The number to get wMNAF for
+   @param w        Window size
+   @param len      [out] Destination for the length of wMNAF
+   @return         array with wMNAF representation
+   @return         NULL in case of errors
+ */
+signed char* ecc_wMNAF(mpz_t x, unsigned int w, size_t* wmnaf_len) {
+    int b, c;
+    char sign = 1;
+    size_t i, len;
 
-signed char* ecc_wMNAF(mpz_t x, unsigned int w, size_t *wmnaf_len) {
-    int wbits, sign = 1;
-    unsigned int len = 0, i;
-    int basew = 1 << w; /* 2^w */
-    int baseww = 1 << (w + 1); /* 2^(w+1) */
-    /* mask to get (w + 1) LSB */
-    int mask = baseww - 1;
+    /* needed constants */
+    int basew    = 1 << w;       /* 2^w */
+    int baseww   = 1 << (w + 1); /* 2^(w+1) */
+    int mask     = baseww - 1;
+
     signed char *ret = NULL;
 
     if (!(sign = mpz_sgn(x))) {
@@ -63,7 +72,7 @@ signed char* ecc_wMNAF(mpz_t x, unsigned int w, size_t *wmnaf_len) {
         goto done;
     }
 
-    /* get number of bits */
+    /* total number of bits */
     len = mpz_sizeinbase(x, 2);
 
     /* wMNAF is at most (len + 1) bits long */
@@ -71,43 +80,35 @@ signed char* ecc_wMNAF(mpz_t x, unsigned int w, size_t *wmnaf_len) {
     if (ret == NULL)
         goto done;
 
-    /* get (w + 1) LSB */
-    wbits = (mpz_getlimbn(x, 0)) & mask;
+    /* get (w + 1) Least Significant Bits */
+    c = (mpz_getlimbn(x, 0)) & mask;
 
-    /* how many bits we already processed */
+    /* how many bits we've already processed */
     i = 0;
 
-    while ((wbits != 0) || (i + w + 1 < len)) {
-        int b = 0;
-
-        if (wbits & 1) {
+    while ( (c != 0) || (i + w + 1 < len) ) {
+        if (c & 1) {
             /* LSB == 1 */
-            if (wbits >= basew ) {
-                /* wbits >= 2^w */
-                b = wbits - baseww;
-
-                if (i + w + 1 >= len) {
-                    /* this pack of bits will be last
-                     * do modified wNAF
-                     * i.e make it 2^w complement */
-                    b = wbits & (mask >> 1);
-                }
+            if (c >= basew) {
+                b = c - baseww;
             } else {
-                b = wbits;
+                b = c;
             }
 
-            wbits -= b;
+            c -= b;
+        } else {
+            b = 0;
         }
 
-        ret[i++] = sign * b;
+        ret[i] = sign * b;
+        ++i;
 
-        /* get next (w + 1) LSB */
-        wbits >>= 1;
-        wbits += basew * mpz_unitstbit(x, i + w);
+        /* fill c with next LSB */
+        c >>= 1;
+        c += basew * mpz_unitstbit(x, i + w);
     }
 
     *wmnaf_len = i;
-
 done:
     return ret;
 }

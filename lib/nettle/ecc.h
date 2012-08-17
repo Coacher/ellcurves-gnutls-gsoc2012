@@ -68,10 +68,10 @@ typedef struct {
 
    /** The order of the curve (hex) */
    const char *order;
-  
+
    /** The x co-ordinate of the base point on the curve (hex) */
    const char *Gx;
- 
+
    /** The y co-ordinate of the base point on the curve (hex) */
    const char *Gy;
 } ecc_set_type;
@@ -147,7 +147,7 @@ int ecc_mulmod(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int 
 int ecc_mulmod_timing(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int map);
 
 /* wMNAF-based mulmod */
-signed char* ecc_wMNAF(mpz_t x, unsigned int w, size_t *ret_len);
+signed char* ecc_wMNAF(mpz_t x, size_t *ret_len);
 int ecc_mulmod_wmnaf(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int map);
 
 /* cache-enabled wMNAF-based mulmod */

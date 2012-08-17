@@ -93,7 +93,7 @@ ecc_make_key_ex (void *random_ctx, nettle_random_func random, ecc_key * key,
   mpz_set (base->x, key->Gx);
   mpz_set (base->y, key->Gy);
   mpz_set_ui (base->z, 1);
-  
+
   nettle_mpz_set_str_256_u (key->k, keysize, buf);
 
   /* the key should be smaller than the order of base point */
@@ -103,7 +103,7 @@ ecc_make_key_ex (void *random_ctx, nettle_random_func random, ecc_key * key,
     }
   /* make the public key */
   if (timing_res)
-    err = ecc_mulmod_timing (key->k, base, &key->pubkey, key->A, key->prime, 1);
+    err = ecc_mulmod_wmnaf_cached_timing (key->k, curve_id, &key->pubkey, key->A, key->prime, 1);
   else
     err = ecc_mulmod_wmnaf_cached (key->k, curve_id, &key->pubkey, key->A, key->prime, 1);
 

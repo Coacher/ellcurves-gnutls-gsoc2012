@@ -140,7 +140,7 @@ static int _wrap_nettle_pk_derive(gnutls_pk_algorithm_t algo, gnutls_datum_t * o
 
         _ecc_params_to_pubkey(pub, &ecc_pub);
         _ecc_params_to_privkey(priv, &ecc_priv);
-        
+
         if (ecc_projective_check_point(&ecc_pub.pubkey, pub->params[ECC_B], pub->params[ECC_PRIME]) != 0)
           {
             ret = gnutls_assert_val(GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER);
@@ -765,7 +765,7 @@ dsa_fail:
             params->params_nr++;
 
           }
-          
+
         ret = 0;
 
         _gnutls_mpi_set (params->params[0], pub.n);
@@ -795,7 +795,7 @@ rsa_fail:
         st = _gnutls_ecc_curve_get_params(level);
         if (st == NULL)
           return gnutls_assert_val(GNUTLS_E_ECC_UNSUPPORTED_CURVE);
-        
+
         tls_ecc_set.size = st->size;
         tls_ecc_set.prime = st->prime;
         tls_ecc_set.order = st->order;
@@ -830,10 +830,10 @@ rsa_fail:
         mpz_set(TOMPZ(params->params[ECC_X]), key.pubkey.x);
         mpz_set(TOMPZ(params->params[ECC_Y]), key.pubkey.y);
         mpz_set(TOMPZ(params->params[ECC_K]), key.k);
-        
+
 ecc_fail:
         ecc_free(&key);
-        
+
         if (ret < 0)
           goto fail;
 
@@ -871,7 +871,7 @@ wrap_nettle_pk_verify_params (gnutls_pk_algorithm_t algo,
 
         if (params->params_nr != RSA_PRIVATE_PARAMS)
           return gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
-        
+
         t1 = _gnutls_mpi_new (256);
         if (t1 == NULL)
           return gnutls_assert_val(GNUTLS_E_MEMORY_ERROR);
@@ -898,13 +898,13 @@ wrap_nettle_pk_verify_params (gnutls_pk_algorithm_t algo,
             ret = gnutls_assert_val(GNUTLS_E_MEMORY_ERROR);
             goto rsa_cleanup;
           }
-  
+
         if (_gnutls_mpi_cmp(params->params[RSA_E1], t2) != 0)
           {
             ret = gnutls_assert_val(GNUTLS_E_ILLEGAL_PARAMETER);
             goto rsa_cleanup;
           }
-        
+
         _gnutls_mpi_sub_ui (t1, params->params[RSA_PRIME2], 1);
         _gnutls_mpi_release(&t2);
 
@@ -914,13 +914,13 @@ wrap_nettle_pk_verify_params (gnutls_pk_algorithm_t algo,
             ret = gnutls_assert_val(GNUTLS_E_MEMORY_ERROR);
             goto rsa_cleanup;
           }
-  
+
         if (_gnutls_mpi_cmp(params->params[RSA_E2], t2) != 0)
           {
             ret = gnutls_assert_val(GNUTLS_E_ILLEGAL_PARAMETER);
             goto rsa_cleanup;
           }
-        
+
         ret = 0;
 
 rsa_cleanup:
@@ -935,7 +935,7 @@ rsa_cleanup:
 
         if (params->params_nr != DSA_PRIVATE_PARAMS)
           return gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);
-        
+
         t1 = _gnutls_mpi_new (256);
         if (t1 == NULL)
           return gnutls_assert_val(GNUTLS_E_MEMORY_ERROR);
@@ -996,13 +996,13 @@ dsa_cleanup:
             ret = gnutls_assert_val(GNUTLS_E_ILLEGAL_PARAMETER);
             goto ecc_cleanup;
           }
-        
+
         ret = 0;
 
 ecc_cleanup:
         _ecc_params_clear(&ecc_priv);
         ecc_del_point(R);
-      }  
+      }
       break;
     default:
       ret = gnutls_assert_val(GNUTLS_E_INVALID_REQUEST);

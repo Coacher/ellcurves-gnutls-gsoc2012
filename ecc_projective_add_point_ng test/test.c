@@ -36,7 +36,7 @@ int main(void) {
     Rclassic   = ecc_new_point();
     Raddng     = ecc_new_point();
     Rmadd      = ecc_new_point();
-    
+
     printf("\nRunning tests for ecc_projective_add_point_ng() and ecc_projective_madd()\n\n");
 
     GNUTLS_ECC_CURVE_LOOP (
@@ -129,7 +129,7 @@ int main(void) {
     ecc_del_point(R2);
     ecc_del_point(R1);
     ecc_del_point(G);
-    
+
     mpz_clears(k, a, modulus, NULL);
 
     return 0;

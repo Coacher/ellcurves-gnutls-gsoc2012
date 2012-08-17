@@ -275,6 +275,93 @@ done:
 
 /*
    Perform a point wMNAF-multiplication utilizing cache
+   This version tries to be timing resistant
+   @param k    The scalar to multiply by
+   @param id   The curve's id
+   @param R    [out] Destination for kG
+   @param a        The curve's A value
+   @param modulus  The modulus of the field the ECC curve is in
+   @param map      Boolean whether to map back to affine or not (1 == map, 0 == leave in projective)
+   @return     GNUTLS_E_SUCCESS on success
+*/
+int
+ecc_mulmod_wmnaf_cached_timing (mpz_t k, gnutls_ecc_curve_t id, ecc_point * R, mpz_t a, mpz_t modulus, int map)
+{
+    int j, err;
+
+    gnutls_ecc_curve_cache_entry_t* cache = NULL;
+    signed char* wmnaf = NULL;
+    size_t wmnaf_len;
+    signed char digit;
+    /* point for throttle */
+    ecc_point* T;
+
+    if (k == NULL || R == NULL || modulus == NULL || id == 0)
+        return GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
+
+    /* prepare T point */
+    T = ecc_new_point();
+    if (T == NULL)
+        return GNUTLS_E_MEMORY_ERROR;
+
+    /* calculate wMNAF */
+    wmnaf = ecc_wMNAF(k, &wmnaf_len);
+    if (!wmnaf) {
+        err = GNUTLS_E_INTERNAL_ERROR;
+        goto done;
+    }
+
+    /* set R to neutral */
+    mpz_set_ui(R->x, 1);
+    mpz_set_ui(R->y, 1);
+    mpz_set_ui(R->z, 0);
+
+    /* set T to neutral */
+    mpz_set_ui(T->x, 1);
+    mpz_set_ui(T->y, 1);
+    mpz_set_ui(T->z, 0);
+
+    /* do cache lookup */
+    cache = ecc_wmnaf_cache + id - 1;
+
+    /* perform ops */
+    for (j = wmnaf_len - 1; j >= 0; --j) {
+        if ((err = ecc_projective_dbl_point(R, R, a, modulus)) != 0)
+            goto done;
+
+        digit = wmnaf[j];
+
+        if (digit) {
+            if (digit > 0) {
+                if ((err = ecc_projective_madd(R, cache->pos[( digit / 2)], R, a, modulus)) != 0)
+                    goto done;
+            } else {
+                if ((err = ecc_projective_madd(R, cache->neg[(-digit / 2)], R, a, modulus)) != 0)
+                    goto done;
+            }
+        } else {
+            /* we add middle element of pos array as a general case
+             * there is no real difference between using pos and neg */
+            if ((err = ecc_projective_madd(R, cache->pos[(WMNAF_PRECOMPUTED_LENGTH / 2)], T, a, modulus)) != 0)
+                goto done;
+        }
+    }
+
+
+    /* map R back from projective space */
+    if (map) {
+        err = ecc_map(R, modulus);
+    } else {
+        err = GNUTLS_E_SUCCESS;
+    }
+done:
+    ecc_del_point(T);
+    if (wmnaf) free(wmnaf);
+    return err;
+}
+
+/*
+   Perform a point wMNAF-multiplication utilizing cache
    This function will lookup for an apropriate curve first
    This function's definition allows in-place substitution instead of ecc_mulmod
    @param k    The scalar to multiply by

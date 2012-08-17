@@ -22,16 +22,6 @@
 
 #include "ecc.h"
 
-/* size of sliding window, don't change this! */
-#ifndef WINSIZE
-    #define WINSIZE 4
-#endif
-
-/* length of single array of precomputed values for ecc_mulmod_wmnaf
- * we have two such arrays for positive and negative multipliers */
-#ifndef PRECOMPUTE_LENGTH
-    #define PRECOMPUTE_LENGTH (1 << (WINSIZE - 1))
-#endif
 
 /*
    Perform a point multiplication using wMNAF representation
@@ -47,7 +37,7 @@ int
 ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
                 int map)
 {
-    ecc_point *pos[PRECOMPUTE_LENGTH], *neg[PRECOMPUTE_LENGTH];
+    ecc_point *pos[WMNAF_PRECOMPUTED_LENGTH], *neg[WMNAF_PRECOMPUTED_LENGTH];
     int        i, j, err;
 
     signed char* wmnaf = NULL;
@@ -58,7 +48,7 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
         return GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
 
     /* alloc ram for precomputed values */
-    for (i = 0; i < PRECOMPUTE_LENGTH; ++i) {
+    for (i = 0; i < WMNAF_PRECOMPUTED_LENGTH; ++i) {
         pos[i] = ecc_new_point();
         neg[i] = ecc_new_point();
         if (pos[i] == NULL || neg[i] == NULL) {
@@ -85,7 +75,7 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
         goto done;
 
     /* fill in kG for k = 5, 7, ..., (2^w - 1) */
-    for (j = 2; j < PRECOMPUTE_LENGTH; ++j) {
+    for (j = 2; j < WMNAF_PRECOMPUTED_LENGTH; ++j) {
         if ((err = ecc_projective_add_point_ng(pos[j-1], pos[0], pos[j], a, modulus)) != 0)
            goto done;
     }
@@ -98,13 +88,13 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
     mpz_set (pos[0]->z, G->z);
 
     /* neg[i] == -pos[i] */
-    for (j = 0; j < PRECOMPUTE_LENGTH; ++j) {
+    for (j = 0; j < WMNAF_PRECOMPUTED_LENGTH; ++j) {
         if ((err = ecc_projective_negate_point(pos[j], neg[j], modulus)) != 0)
             goto done;
     }
 
     /* calculate wMNAF */
-    wmnaf = ecc_wMNAF(k, WINSIZE, &wmnaf_len);
+    wmnaf = ecc_wMNAF(k, &wmnaf_len);
     if (!wmnaf) {
         err = GNUTLS_E_INTERNAL_ERROR;
         goto done;
@@ -143,7 +133,7 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
         err = GNUTLS_E_SUCCESS;
     }
 done:
-    for (i = 0; i < PRECOMPUTE_LENGTH; ++i) {
+    for (i = 0; i < WMNAF_PRECOMPUTED_LENGTH; ++i) {
         ecc_del_point(pos[i]);
         ecc_del_point(neg[i]);
     }

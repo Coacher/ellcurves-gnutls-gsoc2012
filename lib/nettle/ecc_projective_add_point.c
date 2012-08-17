@@ -55,7 +55,7 @@ ecc_projective_add_point (ecc_point * P, ecc_point * Q, ecc_point * R,
       return err;
     }
 
-  /* Check if P == Q and do doubling in that case 
+  /* Check if P == Q and do doubling in that case
    * If Q == -P then P+Q=point at infinity
    */
   if ((mpz_cmp (P->x, Q->x) == 0) &&

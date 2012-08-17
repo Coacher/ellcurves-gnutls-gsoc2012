@@ -26,16 +26,6 @@
 
 #include "ecc.h"
 
-/* size of sliding window, don't change this! */
-#ifndef WINSIZE
-    #define WINSIZE 4
-#endif
-
-/* length of single array of precomputed values for caching
- * we have two such arrays for positive and negative multipliers */
-#ifndef PRECOMPUTE_LENGTH
-    #define PRECOMPUTE_LENGTH (1 << (WINSIZE - 1))
-#endif
 
 /* per-curve cache structure */
 typedef struct {
@@ -43,10 +33,10 @@ typedef struct {
     gnutls_ecc_curve_t id;
 
     /** The array of positive multipliers of G */
-    ecc_point *pos[PRECOMPUTE_LENGTH];
+    ecc_point *pos[WMNAF_PRECOMPUTED_LENGTH];
 
     /** The array of negative multipliers of G */
-    ecc_point *neg[PRECOMPUTE_LENGTH];
+    ecc_point *neg[WMNAF_PRECOMPUTED_LENGTH];
 } gnutls_ecc_curve_cache_entry_t;
 
 /* global cache */
@@ -56,7 +46,7 @@ static gnutls_ecc_curve_cache_entry_t* ecc_wmnaf_cache = NULL;
 static void _ecc_wmnaf_cache_entry_free(gnutls_ecc_curve_cache_entry_t* p) {
     int i;
 
-    for(i = 0; i < PRECOMPUTE_LENGTH; ++i) {
+    for(i = 0; i < WMNAF_PRECOMPUTED_LENGTH; ++i) {
         ecc_del_point(p->pos[i]);
         ecc_del_point(p->neg[i]);
     }
@@ -116,7 +106,7 @@ static int _ecc_wmnaf_cache_entry_init(gnutls_ecc_curve_cache_entry_t* p, \
     mpz_set_str(a, st->A, 16);
 
     /* alloc ram for precomputed values */
-    for (i = 0; i < PRECOMPUTE_LENGTH; ++i) {
+    for (i = 0; i < WMNAF_PRECOMPUTED_LENGTH; ++i) {
         p->pos[i] = ecc_new_point();
         p->neg[i] = ecc_new_point();
         if (p->pos[i] == NULL || p->neg[i] == NULL) {
@@ -144,7 +134,7 @@ static int _ecc_wmnaf_cache_entry_init(gnutls_ecc_curve_cache_entry_t* p, \
         goto done;
 
     /* fill in kG for k = 5, 7, ..., (2^w - 1) */
-    for (j = 2; j < PRECOMPUTE_LENGTH; ++j) {
+    for (j = 2; j < WMNAF_PRECOMPUTED_LENGTH; ++j) {
         if ((err = ecc_projective_add_point_ng(p->pos[j-1], p->pos[0], p->pos[j], a, modulus)) != 0)
            goto done;
     }
@@ -158,7 +148,7 @@ static int _ecc_wmnaf_cache_entry_init(gnutls_ecc_curve_cache_entry_t* p, \
     /* map to affine all elements in pos
      * this will allow to use ecc_projective_madd later
      * set neg[i] == -pos[i] */
-    for (j = 0; j < PRECOMPUTE_LENGTH; ++j) {
+    for (j = 0; j < WMNAF_PRECOMPUTED_LENGTH; ++j) {
         if ((err = ecc_map(p->pos[j], modulus)) != 0)
             goto done;
 
@@ -195,6 +185,7 @@ int ecc_wmnaf_cache_init(void) {
             goto done;
     }
 
+    /* nullify last cache entry id */
     ret[++j].id = 0;
 
     err = GNUTLS_E_SUCCESS;
@@ -234,11 +225,11 @@ ecc_mulmod_wmnaf_cached (mpz_t k, gnutls_ecc_curve_t id, ecc_point * R, mpz_t a,
     size_t wmnaf_len;
     signed char digit;
 
-    if (k == NULL || R == NULL || id == 0)
+    if (k == NULL || R == NULL || modulus == NULL || id == 0)
         return GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
 
     /* calculate wMNAF */
-    wmnaf = ecc_wMNAF(k, WINSIZE, &wmnaf_len);
+    wmnaf = ecc_wMNAF(k, &wmnaf_len);
     if (!wmnaf) {
         err = GNUTLS_E_INTERNAL_ERROR;
         goto done;
@@ -299,7 +290,7 @@ ecc_mulmod_wmnaf_cached_lookup (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, 
 {
     int i, id;
 
-    if ( G == NULL || R == NULL )
+    if (k == NULL || G == NULL || R == NULL || modulus == NULL)
         return GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
 
     for (i = 0; (id = ecc_wmnaf_cache[i].id); ++i) {

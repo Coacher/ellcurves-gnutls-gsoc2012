@@ -42,6 +42,13 @@
 /* max private key size */
 #define ECC_MAXSIZE  66
 
+/* wMNAF window size */
+#define WMNAF_WINSIZE 4
+
+/* length of a single array of precomputed values for wMNAF
+ * we have two such arrays for positive and negative multipliers */
+#define WMNAF_PRECOMPUTED_LENGTH (1 << (WMNAF_WINSIZE - 1))
+
 /** Structure defines a NIST GF(p) curve */
 typedef struct {
    /** The size of the curve in octets */

@@ -1,8 +1,35 @@
+/*
+ * Copyright (C) 2011-2012 Free Software Foundation, Inc.
+ *
+ * Author: Ilya Tumaykin
+ *
+ * This file is part of GNUTLS.
+ *
+ * The GNUTLS library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation; either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ *
+ */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <gmp.h>
 
 #include "ecc.h"
+
+/* needed constants, see ecc.h */
+#define BASEW   = 1 << WMNAF_WINSIZE;       /* 2^w */
+#define BASEWW  = 1 << (WMNAF_WINSIZE + 1); /* 2^(w+1) */
+#define WBITS   = BASEWW - 1;
 
 #define ABS(x) ((x) >= 0 ? (x) : -(x))
 
@@ -32,8 +59,7 @@ mpz_unitstbit (mpz_srcptr u, mp_bitcnt_t bit_index) __GMP_NOTHROW
 }
 
 /*
- * Return an array with wMNAF representationtogether with its length.
- *
+ * Return an array with wMNAF representation together with its length.
  * The result is the array with elements from the set {0, +-1, +-3, +-5, ..., +-(2^w - 1)}
  * such that at most one of any (w + 1) consecutive digits is non-zero
  * with exception for the the most significant (w + 1) bits.
@@ -44,20 +70,14 @@ mpz_unitstbit (mpz_srcptr u, mp_bitcnt_t bit_index) __GMP_NOTHROW
  */
 /*
    @param x        The number to get wMNAF for
-   @param w        Window size
    @param len      [out] Destination for the length of wMNAF
    @return         array with wMNAF representation
    @return         NULL in case of errors
  */
-signed char* ecc_wMNAF(mpz_t x, unsigned int w, size_t* wmnaf_len) {
+signed char* ecc_wMNAF(mpz_t x, size_t* wmnaf_len) {
     int b, c;
     char sign = 1;
     size_t i, len;
-
-    /* needed constants */
-    int basew    = 1 << w;       /* 2^w */
-    int baseww   = 1 << (w + 1); /* 2^(w+1) */
-    int mask     = baseww - 1;
 
     signed char *ret = NULL;
 
@@ -81,16 +101,16 @@ signed char* ecc_wMNAF(mpz_t x, unsigned int w, size_t* wmnaf_len) {
         goto done;
 
     /* get (w + 1) Least Significant Bits */
-    c = (mpz_getlimbn(x, 0)) & mask;
+    c = (mpz_getlimbn(x, 0)) & WBITS;
 
     /* how many bits we've already processed */
     i = 0;
 
-    while ( (c != 0) || (i + w + 1 < len) ) {
+    while ( (c != 0) || (i + WMNAF_WINSIZE + 1 < len) ) {
         if (c & 1) {
             /* LSB == 1 */
-            if (c >= basew) {
-                b = c - baseww;
+            if (c >= BASEW) {
+                b = c - BASEWW;
             } else {
                 b = c;
             }
@@ -104,16 +124,17 @@ signed char* ecc_wMNAF(mpz_t x, unsigned int w, size_t* wmnaf_len) {
 
         /* fill c with next LSB */
         c >>= 1;
-        c += basew * mpz_unitstbit(x, i + w);
+        c += BASEW * mpz_unitstbit(x, i + WMNAF_WINSIZE);
     }
 
     *wmnaf_len = i--;
 
-    /* modified wNAF */
-    if ((ret[i] == 1) && (ret[i-w-1] < 0)) {
-        ret[i-w-1] += basew;
-        ret[i-1] = 1;
-        ret[i] = 0;
+    /* do modified wNAF
+     * check if wNAF starts with 1 and
+     * (w + 1)th bit is negative */
+    if ( (ret[i] == 1) && (ret[i - (WMNAF_WINSIZE + 1)] < 0) ) {
+        ret[i - (WMNAF_WINSIZE + 1)] += BASEW;
+        ret[i - 1] = 1;
         *wmnaf_len = i;
     }
 done:

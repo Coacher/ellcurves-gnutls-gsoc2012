@@ -104,7 +104,7 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
     if ((err = mp_init_multi (&Z1Z1, &Z2Z2, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL)) != 0 )
         return err;
 
-    /* Check if P == Q and do doubling in that case 
+    /* Check if P == Q and do doubling in that case
      * If Q == -P then P + Q = neutral element */
     if ((mpz_cmp (P->x, Q->x) == 0) &&
         (mpz_cmp (P->z, Q->z) == 0)) {
@@ -134,7 +134,7 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
         return ecc_projective_madd (P, Q, R, a, modulus);
     }
 
-    /* no special cases occured 
+    /* no special cases occured
      * do general routine */
 
     /* Z1Z1 = Z1 * Z1 */
@@ -170,9 +170,8 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
         return GNUTLS_E_SUCCESS;
     }
 #else
-    if (mpz_cmp_ui (H, 0) < 0) {
+    if (mpz_cmp_ui (H, 0) < 0)
         mpz_add (H, H, modulus);
-    }
 #endif
     /* t1 = H^2 */
     /* it is the original HH */
@@ -262,7 +261,8 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
    @param R        [out] The destination of the double
    @param a        Curve's a value
    @param modulus  The modulus of the field the ECC curve is in
-   @return 0 on success
+   @return         GNUTLS_E_SUCCESS on success
+
    Note: this function will work when a != -3.
    It will work in general case without a change.
 */
@@ -293,7 +293,7 @@ ecc_projective_madd (ecc_point * P, ecc_point * Q, ecc_point * R,
     if ((err = mp_init_multi (&Z1Z1, &S1, &H, &J, &r, &V, &t0, &t1, NULL)) != 0 )
         return err;
 
-    /* Check if P == Q and do doubling in that case 
+    /* Check if P == Q and do doubling in that case
      * If Q == -P then P + Q = neutral element */
     if ((mpz_cmp (P->x, Q->x) == 0) &&
         (mpz_cmp (P->z, Q->z) == 0)) {
@@ -316,7 +316,7 @@ ecc_projective_madd (ecc_point * P, ecc_point * Q, ecc_point * R,
         }
     }
 
-    /* no special cases occured 
+    /* no special cases occured
      * do madd */
 
     /* Z1Z1 = Z1 * Z1 */

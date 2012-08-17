@@ -2,8 +2,6 @@
 #include <stdio.h>
 #include <gmp.h>
 
-#define WINSIZE 4
-
 #define MAX_NUM 128
 
 int main(void) {
@@ -22,7 +20,7 @@ int main(void) {
 
         mpz_set_si(x, i);
 
-        wmnaf = ecc_wMNAF(x, WINSIZE, &wmnaf_len);
+        wmnaf = ecc_wMNAF(x, &wmnaf_len);
 
         printf("\"%5i\" has wMNAF repr. = [", i);
         for (j = wmnaf_len - 1; j > 0; --j) {

@@ -47,6 +47,7 @@ PATCHES=(
 "enable_wmnaf_muliplication_everywhere"
 "enable_wmnaf_with_caching_everywhere"
 "enable_wmnaf_with_caching_with_timing"
+"disable_fixed_window"
 "disable_add_point_ng"
 )
 

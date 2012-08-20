@@ -47,6 +47,7 @@ PATCHES=(
 "enable_wmnaf_muliplication_everywhere"
 "enable_wmnaf_with_caching_everywhere"
 "enable_wmnaf_with_caching_with_timing"
+# the set of patches above effectively includes all changes we made
 "disable_fixed_window"
 "disable_add_point_ng"
 )
@@ -96,7 +97,7 @@ disable_feature() {
 }
 
 make_header() {
-    echo "# $1. ${TESTRUNS} successive runs. ECC $2 bits." >> "${OUTDIR}/$1_results" || die "Failed to make header"
+    echo "# $1. ${TESTRUNS} successive run(s). ECC $2 bits." >> "${OUTDIR}/$1_results" || die "Failed to make header"
 }
 
 test_feature() {

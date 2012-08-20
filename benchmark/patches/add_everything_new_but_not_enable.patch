@@ -1,0 +1,1358 @@
+diff --git a/lib/nettle/Makefile.am b/lib/nettle/Makefile.am
+index 71d7802..313a69d 100644
+--- a/lib/nettle/Makefile.am
++++ b/lib/nettle/Makefile.am
+@@ -34,7 +34,9 @@ endif
+ noinst_LTLIBRARIES = libcrypto.la
+ 
+ libcrypto_la_SOURCES = pk.c mpi.c mac.c cipher.c rnd.c init.c egd.c egd.h \
+-	multi.c ecc_free.c ecc.h ecc_make_key.c ecc_shared_secret.c \
+-	ecc_map.c ecc_mulmod.c ecc_points.c ecc_projective_dbl_point_3.c \
+-	ecc_projective_add_point.c ecc_projective_check_point.c \
++	multi.c wmnaf.c ecc_free.c ecc.h ecc_make_key.c ecc_shared_secret.c \
++	ecc_map.c ecc_mulmod.c ecc_mulmod_wmnaf.c ecc_mulmod_wmnaf_cached.c \
++	ecc_points.c ecc_projective_dbl_point_3.c ecc_projective_isneutral.c \
++	ecc_projective_check_point.c ecc_projective_negate_point.c \
++	ecc_projective_add_point.c ecc_projective_add_point_ng.c \
+ 	ecc_sign_hash.c ecc_verify_hash.c gnettle.h ecc_mulmod_timing.c
+diff --git a/lib/nettle/ecc.h b/lib/nettle/ecc.h
+index 0925216..dc0d36c 100644
+--- a/lib/nettle/ecc.h
++++ b/lib/nettle/ecc.h
+@@ -42,6 +42,13 @@
+ /* max private key size */
+ #define ECC_MAXSIZE  66
+ 
++/* wMNAF window size */
++#define WMNAF_WINSIZE 4
++
++/* length of a single array of precomputed values for wMNAF
++ * we have two such arrays for positive and negative multipliers */
++#define WMNAF_PRECOMPUTED_LENGTH (1 << (WMNAF_WINSIZE - 1))
++
+ /** Structure defines a NIST GF(p) curve */
+ typedef struct {
+    /** The size of the curve in octets */
+@@ -61,10 +68,10 @@ typedef struct {
+ 
+    /** The order of the curve (hex) */
+    const char *order;
+-  
++
+    /** The x co-ordinate of the base point on the curve (hex) */
+    const char *Gx;
+- 
++
+    /** The y co-ordinate of the base point on the curve (hex) */
+    const char *Gy;
+ } ecc_set_type;
+@@ -123,16 +130,35 @@ ecc_point *ecc_new_point(void);
+ void       ecc_del_point(ecc_point *p);
+ 
+ /* point ops (mp == montgomery digit) */
++/* R = -P */
++int ecc_projective_negate_point(ecc_point *P, ecc_point *R, mpz_t modulus);
++
+ /* R = 2P */
+ int ecc_projective_dbl_point(ecc_point *P, ecc_point *R, mpz_t a,  mpz_t modulus);
+ 
+ /* R = P + Q */
+ int ecc_projective_add_point(ecc_point *P, ecc_point *Q, ecc_point *R, mpz_t A, mpz_t modulus);
++int ecc_projective_add_point_ng(ecc_point *P, ecc_point *Q, ecc_point *R, mpz_t A, mpz_t modulus);
++int ecc_projective_madd (ecc_point* P, ecc_point* Q, ecc_point* R, mpz_t a, mpz_t modulus);
+ 
+ /* R = kG */
+ int ecc_mulmod(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int map);
+ int ecc_mulmod_timing(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int map);
+ 
++/* wMNAF-based mulmod */
++signed char* ecc_wMNAF(mpz_t x, size_t *ret_len);
++int ecc_mulmod_wmnaf(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int map);
++
++/* cache-enabled wMNAF-based mulmod */
++int  ecc_wmnaf_cache_init(void);
++void ecc_wmnaf_cache_free(void);
++int ecc_mulmod_wmnaf_cached (mpz_t k, gnutls_ecc_curve_t id, ecc_point * R, mpz_t a, mpz_t modulus, int map);
++int ecc_mulmod_wmnaf_cached_timing (mpz_t k, gnutls_ecc_curve_t id, ecc_point * R, mpz_t a, mpz_t modulus, int map);
++int ecc_mulmod_wmnaf_cached_lookup (mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int map);
++
++/* check if the given point is neutral point */
++int ecc_projective_isneutral(ecc_point *P, mpz_t modulus);
++
+ /* map P to affine from projective */
+ int ecc_map(ecc_point *P, mpz_t modulus);
+ 
+diff --git a/lib/nettle/ecc_mulmod_wmnaf.c b/lib/nettle/ecc_mulmod_wmnaf.c
+new file mode 100644
+index 0000000..315d0ea
+--- /dev/null
++++ b/lib/nettle/ecc_mulmod_wmnaf.c
+@@ -0,0 +1,142 @@
++/*
++ * Copyright (C) 2011-2012 Free Software Foundation, Inc.
++ *
++ * Author: Ilya Tumaykin
++ *
++ * This file is part of GNUTLS.
++ *
++ * The GNUTLS library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public License
++ * as published by the Free Software Foundation; either version 3 of
++ * the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful, but
++ * WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public License
++ * along with this program.  If not, see <http://www.gnu.org/licenses/>
++ *
++ */
++
++#include "ecc.h"
++
++
++/*
++   Perform a point multiplication using wMNAF representation
++   @param k    The scalar to multiply by
++   @param G    The base point
++   @param R    [out] Destination for kG
++   @param a        The curve's A value
++   @param modulus  The modulus of the field the ECC curve is in
++   @param map      Boolean whether to map back to affine or not (1 == map, 0 == leave in projective)
++   @return     GNUTLS_E_SUCCESS on success
++*/
++int
++ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
++                int map)
++{
++    ecc_point *pos[WMNAF_PRECOMPUTED_LENGTH], *neg[WMNAF_PRECOMPUTED_LENGTH];
++    int        i, j, err;
++
++    signed char* wmnaf = NULL;
++    size_t wmnaf_len;
++    signed char digit;
++
++    if (k == NULL || G == NULL || R == NULL || modulus == NULL)
++        return GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
++
++    /* alloc ram for precomputed values */
++    for (i = 0; i < WMNAF_PRECOMPUTED_LENGTH; ++i) {
++        pos[i] = ecc_new_point();
++        neg[i] = ecc_new_point();
++        if (pos[i] == NULL || neg[i] == NULL) {
++            for (j = 0; j < i; ++j) {
++              ecc_del_point(pos[j]);
++              ecc_del_point(neg[j]);
++            }
++
++            return GNUTLS_E_MEMORY_ERROR;
++        }
++    }
++
++    /* fill in pos and neg arrays with precomputed values
++     * pos holds kG for k ==  1, 3, 5, ..., (2^w - 1)
++     * neg holds kG for k == -1,-3,-5, ...,-(2^w - 1)
++     */
++
++    /* pos[0] == 2G for a while, later it will be set to the expected 1G */
++    if ((err = ecc_projective_dbl_point(G, pos[0], a, modulus)) != 0)
++        goto done;
++
++    /* pos[1] == 3G */
++    if ((err = ecc_projective_add_point_ng(pos[0], G, pos[1], a, modulus)) != 0)
++        goto done;
++
++    /* fill in kG for k = 5, 7, ..., (2^w - 1) */
++    for (j = 2; j < WMNAF_PRECOMPUTED_LENGTH; ++j) {
++        if ((err = ecc_projective_add_point_ng(pos[j-1], pos[0], pos[j], a, modulus)) != 0)
++           goto done;
++    }
++
++    /* set pos[0] == 1G as expected
++     * after this step we don't need G at all 
++     * and can change it without worries even if R == G */
++    mpz_set (pos[0]->x, G->x);
++    mpz_set (pos[0]->y, G->y);
++    mpz_set (pos[0]->z, G->z);
++
++    /* neg[i] == -pos[i] */
++    for (j = 0; j < WMNAF_PRECOMPUTED_LENGTH; ++j) {
++        if ((err = ecc_projective_negate_point(pos[j], neg[j], modulus)) != 0)
++            goto done;
++    }
++
++    /* calculate wMNAF */
++    wmnaf = ecc_wMNAF(k, &wmnaf_len);
++    if (!wmnaf) {
++        err = GNUTLS_E_INTERNAL_ERROR;
++        goto done;
++    }
++
++    /* actual point computation */
++
++    /* set R to neutral */
++    mpz_set_ui(R->x, 1);
++    mpz_set_ui(R->y, 1);
++    mpz_set_ui(R->z, 0);
++
++    /* perform ops */
++    for (j = wmnaf_len - 1; j >= 0; --j) {
++        if ((err = ecc_projective_dbl_point(R, R, a, modulus)) != 0)
++            goto done;
++
++        digit = wmnaf[j];
++
++        if (digit) {
++            if (digit > 0) {
++                if ((err = ecc_projective_add_point_ng(R, pos[( digit / 2)], R, a, modulus)) != 0)
++                    goto done;
++            } else {
++                if ((err = ecc_projective_add_point_ng(R, neg[(-digit / 2)], R, a, modulus)) != 0)
++                    goto done;
++            }
++        }
++    }
++
++
++    /* map R back from projective space */
++    if (map) {
++        err = ecc_map(R, modulus);
++    } else {
++        err = GNUTLS_E_SUCCESS;
++    }
++done:
++    for (i = 0; i < WMNAF_PRECOMPUTED_LENGTH; ++i) {
++        ecc_del_point(pos[i]);
++        ecc_del_point(neg[i]);
++    }
++    if (wmnaf) free(wmnaf);
++    return err;
++}
+diff --git a/lib/nettle/ecc_mulmod_wmnaf_cached.c b/lib/nettle/ecc_mulmod_wmnaf_cached.c
+new file mode 100644
+index 0000000..06e48e0
+--- /dev/null
++++ b/lib/nettle/ecc_mulmod_wmnaf_cached.c
+@@ -0,0 +1,391 @@
++/*
++ * Copyright (C) 2011-2012 Free Software Foundation, Inc.
++ *
++ * Author: Ilya Tumaykin
++ *
++ * This file is part of GNUTLS.
++ *
++ * The GNUTLS library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public License
++ * as published by the Free Software Foundation; either version 3 of
++ * the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful, but
++ * WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public License
++ * along with this program.  If not, see <http://www.gnu.org/licenses/>
++ *
++ */
++
++/* needed for gnutls_* types */
++#include <gnutls_int.h>
++#include <algorithms.h>
++
++#include "ecc.h"
++
++
++/* per-curve cache structure */
++typedef struct {
++    /* curve's id */
++    gnutls_ecc_curve_t id;
++
++    /** The array of positive multipliers of G */
++    ecc_point *pos[WMNAF_PRECOMPUTED_LENGTH];
++
++    /** The array of negative multipliers of G */
++    ecc_point *neg[WMNAF_PRECOMPUTED_LENGTH];
++} gnutls_ecc_curve_cache_entry_t;
++
++/* global cache */
++static gnutls_ecc_curve_cache_entry_t* ecc_wmnaf_cache = NULL;
++
++/* free single cache entry */
++static void _ecc_wmnaf_cache_entry_free(gnutls_ecc_curve_cache_entry_t* p) {
++    int i;
++
++    for(i = 0; i < WMNAF_PRECOMPUTED_LENGTH; ++i) {
++        ecc_del_point(p->pos[i]);
++        ecc_del_point(p->neg[i]);
++    }
++}
++
++/* free curves caches */
++void ecc_wmnaf_cache_free(void) {
++    gnutls_ecc_curve_cache_entry_t* p = ecc_wmnaf_cache;
++    if (p) {
++        for (; p->id; ++p) {
++            _ecc_wmnaf_cache_entry_free(p);
++        }
++
++        free(ecc_wmnaf_cache);
++    }
++}
++
++/* initialize single cache entry
++ * for a curve with the given id */
++static int _ecc_wmnaf_cache_entry_init(gnutls_ecc_curve_cache_entry_t* p, \
++        gnutls_ecc_curve_t id) {
++    int i, j, err;
++    ecc_point* G;
++    mpz_t a, modulus;
++
++    const gnutls_ecc_curve_entry_st *st = NULL;
++
++    if (p == NULL || id == 0)
++        return GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
++
++    G = ecc_new_point();
++    if (G == NULL) {
++        return GNUTLS_E_MEMORY_ERROR;
++    }
++
++    st =  _gnutls_ecc_curve_get_params(id);
++    if (st == NULL) {
++        err = GNUTLS_E_INTERNAL_ERROR;
++        goto done;
++    }
++
++    if ((err = mp_init_multi (&a, &modulus, NULL) != 0))
++        return err;
++
++    /* set id */
++    p->id = id;
++
++    /* set modulus */
++    mpz_set_str(modulus, st->prime, 16);
++
++    /* get generator point */
++    mpz_set_str(G->x, st->Gx, 16);
++    mpz_set_str(G->y, st->Gy, 16);
++    mpz_set_ui (G->z, 1);
++
++    /* set A */
++    mpz_set_str(a, st->A, 16);
++
++    /* alloc ram for precomputed values */
++    for (i = 0; i < WMNAF_PRECOMPUTED_LENGTH; ++i) {
++        p->pos[i] = ecc_new_point();
++        p->neg[i] = ecc_new_point();
++        if (p->pos[i] == NULL || p->neg[i] == NULL) {
++            for (j = 0; j < i; ++j) {
++              ecc_del_point(p->pos[j]);
++              ecc_del_point(p->neg[j]);
++            }
++
++            err = GNUTLS_E_MEMORY_ERROR;
++            goto done;
++        }
++    }
++
++    /* fill in pos and neg arrays with precomputed values
++     * pos holds kG for k ==  1, 3, 5, ..., (2^w - 1)
++     * neg holds kG for k == -1,-3,-5, ...,-(2^w - 1)
++     */
++
++    /* pos[0] == 2G for a while, later it will be set to the expected 1G */
++    if ((err = ecc_projective_dbl_point(G, p->pos[0], a, modulus)) != 0)
++        goto done;
++
++    /* pos[1] == 3G */
++    if ((err = ecc_projective_add_point_ng(p->pos[0], G, p->pos[1], a, modulus)) != 0)
++        goto done;
++
++    /* fill in kG for k = 5, 7, ..., (2^w - 1) */
++    for (j = 2; j < WMNAF_PRECOMPUTED_LENGTH; ++j) {
++        if ((err = ecc_projective_add_point_ng(p->pos[j-1], p->pos[0], p->pos[j], a, modulus)) != 0)
++           goto done;
++    }
++
++    /* set pos[0] == 1G as expected
++     * after this step we don't need G at all */
++    mpz_set (p->pos[0]->x, G->x);
++    mpz_set (p->pos[0]->y, G->y);
++    mpz_set (p->pos[0]->z, G->z);
++
++    /* map to affine all elements in pos
++     * this will allow to use ecc_projective_madd later
++     * set neg[i] == -pos[i] */
++    for (j = 0; j < WMNAF_PRECOMPUTED_LENGTH; ++j) {
++        if ((err = ecc_map(p->pos[j], modulus)) != 0)
++            goto done;
++
++        if ((err = ecc_projective_negate_point(p->pos[j], p->neg[j], modulus)) != 0)
++            goto done;
++    }
++
++    err = 0;
++done:
++    ecc_del_point(G);
++    mp_clear_multi (&a, &modulus, NULL);
++
++    return err;
++}
++
++/* initialize curves caches */
++int ecc_wmnaf_cache_init(void) {
++    int j, err;
++
++    gnutls_ecc_curve_cache_entry_t* ret;
++
++    const gnutls_ecc_curve_t *p;
++
++    ret = (gnutls_ecc_curve_cache_entry_t*) \
++          malloc(MAX_ALGOS*sizeof(gnutls_ecc_curve_cache_entry_t));
++    if (ret == NULL)
++        return GNUTLS_E_MEMORY_ERROR;
++
++    /* get supported curves' ids */
++    p = gnutls_ecc_curve_list();
++
++    for (j = 0; *p; ++p, ++j) {
++        if ((err = _ecc_wmnaf_cache_entry_init(ret + *p - 1, *p)) != 0)
++            goto done;
++    }
++
++    /* nullify last cache entry id */
++    ret[++j].id = 0;
++
++    err = GNUTLS_E_SUCCESS;
++
++    ecc_wmnaf_cache = ret;
++done:
++    if (err) {
++        int i;
++        for(i = 0; i < j; ++i) {
++            _ecc_wmnaf_cache_entry_free(ret + i);
++        }
++
++        free(ret);
++        ecc_wmnaf_cache = NULL;
++    }
++    return err;
++}
++
++
++/*
++   Perform a point wMNAF-multiplication utilizing cache
++   @param k    The scalar to multiply by
++   @param id   The curve's id
++   @param R    [out] Destination for kG
++   @param a        The curve's A value
++   @param modulus  The modulus of the field the ECC curve is in
++   @param map      Boolean whether to map back to affine or not (1 == map, 0 == leave in projective)
++   @return     GNUTLS_E_SUCCESS on success
++*/
++int
++ecc_mulmod_wmnaf_cached (mpz_t k, gnutls_ecc_curve_t id, ecc_point * R, mpz_t a, mpz_t modulus, int map)
++{
++    int j, err;
++
++    gnutls_ecc_curve_cache_entry_t* cache = NULL;
++    signed char* wmnaf = NULL;
++    size_t wmnaf_len;
++    signed char digit;
++
++    if (k == NULL || R == NULL || modulus == NULL || id == 0)
++        return GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
++
++    /* calculate wMNAF */
++    wmnaf = ecc_wMNAF(k, &wmnaf_len);
++    if (!wmnaf) {
++        err = GNUTLS_E_INTERNAL_ERROR;
++        goto done;
++    }
++
++    /* set R to neutral */
++    mpz_set_ui(R->x, 1);
++    mpz_set_ui(R->y, 1);
++    mpz_set_ui(R->z, 0);
++
++    /* do cache lookup */
++    cache = ecc_wmnaf_cache + id - 1;
++
++    /* perform ops */
++    for (j = wmnaf_len - 1; j >= 0; --j) {
++        if ((err = ecc_projective_dbl_point(R, R, a, modulus)) != 0)
++            goto done;
++
++        digit = wmnaf[j];
++
++        if (digit) {
++            if (digit > 0) {
++                if ((err = ecc_projective_madd(R, cache->pos[( digit / 2)], R, a, modulus)) != 0)
++                    goto done;
++            } else {
++                if ((err = ecc_projective_madd(R, cache->neg[(-digit / 2)], R, a, modulus)) != 0)
++                    goto done;
++            }
++        }
++    }
++
++
++    /* map R back from projective space */
++    if (map) {
++        err = ecc_map(R, modulus);
++    } else {
++        err = GNUTLS_E_SUCCESS;
++    }
++done:
++    if (wmnaf) free(wmnaf);
++    return err;
++}
++
++/*
++   Perform a point wMNAF-multiplication utilizing cache
++   This version tries to be timing resistant
++   @param k    The scalar to multiply by
++   @param id   The curve's id
++   @param R    [out] Destination for kG
++   @param a        The curve's A value
++   @param modulus  The modulus of the field the ECC curve is in
++   @param map      Boolean whether to map back to affine or not (1 == map, 0 == leave in projective)
++   @return     GNUTLS_E_SUCCESS on success
++*/
++int
++ecc_mulmod_wmnaf_cached_timing (mpz_t k, gnutls_ecc_curve_t id, ecc_point * R, mpz_t a, mpz_t modulus, int map)
++{
++    int j, err;
++
++    gnutls_ecc_curve_cache_entry_t* cache = NULL;
++    signed char* wmnaf = NULL;
++    size_t wmnaf_len;
++    signed char digit;
++    /* point for throttle */
++    ecc_point* T;
++
++    if (k == NULL || R == NULL || modulus == NULL || id == 0)
++        return GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
++
++    /* prepare T point */
++    T = ecc_new_point();
++    if (T == NULL)
++        return GNUTLS_E_MEMORY_ERROR;
++
++    /* calculate wMNAF */
++    wmnaf = ecc_wMNAF(k, &wmnaf_len);
++    if (!wmnaf) {
++        err = GNUTLS_E_INTERNAL_ERROR;
++        goto done;
++    }
++
++    /* set R to neutral */
++    mpz_set_ui(R->x, 1);
++    mpz_set_ui(R->y, 1);
++    mpz_set_ui(R->z, 0);
++
++    /* set T to neutral */
++    mpz_set_ui(T->x, 1);
++    mpz_set_ui(T->y, 1);
++    mpz_set_ui(T->z, 0);
++
++    /* do cache lookup */
++    cache = ecc_wmnaf_cache + id - 1;
++
++    /* perform ops */
++    for (j = wmnaf_len - 1; j >= 0; --j) {
++        if ((err = ecc_projective_dbl_point(R, R, a, modulus)) != 0)
++            goto done;
++
++        digit = wmnaf[j];
++
++        if (digit) {
++            if (digit > 0) {
++                if ((err = ecc_projective_madd(R, cache->pos[( digit / 2)], R, a, modulus)) != 0)
++                    goto done;
++            } else {
++                if ((err = ecc_projective_madd(R, cache->neg[(-digit / 2)], R, a, modulus)) != 0)
++                    goto done;
++            }
++        } else {
++            /* we add middle element of pos array as a general case
++             * there is no real difference between using pos and neg */
++            if ((err = ecc_projective_madd(R, cache->pos[(WMNAF_PRECOMPUTED_LENGTH / 2)], T, a, modulus)) != 0)
++                goto done;
++        }
++    }
++
++
++    /* map R back from projective space */
++    if (map) {
++        err = ecc_map(R, modulus);
++    } else {
++        err = GNUTLS_E_SUCCESS;
++    }
++done:
++    ecc_del_point(T);
++    if (wmnaf) free(wmnaf);
++    return err;
++}
++
++/*
++   Perform a point wMNAF-multiplication utilizing cache
++   This function will lookup for an apropriate curve first
++   This function's definition allows in-place substitution instead of ecc_mulmod
++   @param k    The scalar to multiply by
++   @param id   The curve's id
++   @param R    [out] Destination for kG
++   @param a        The curve's A value
++   @param modulus  The modulus of the field the ECC curve is in
++   @param map      Boolean whether to map back to affine or not (1 == map, 0 == leave in projective)
++   @return     GNUTLS_E_SUCCESS on success
++*/
++int
++ecc_mulmod_wmnaf_cached_lookup (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus, int map)
++{
++    int i, id;
++
++    if (k == NULL || G == NULL || R == NULL || modulus == NULL)
++        return GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
++
++    for (i = 0; (id = ecc_wmnaf_cache[i].id); ++i) {
++        if ( !(mpz_cmp(G->x, ecc_wmnaf_cache[i].pos[0]->x)) &&
++             !(mpz_cmp(G->y, ecc_wmnaf_cache[i].pos[0]->y))) {
++             break;
++        }
++    }
++
++    return ecc_mulmod_wmnaf_cached(k, id, R, a, modulus, map);
++}
+diff --git a/lib/nettle/ecc_projective_add_point_ng.c b/lib/nettle/ecc_projective_add_point_ng.c
+new file mode 100644
+index 0000000..e60849e
+--- /dev/null
++++ b/lib/nettle/ecc_projective_add_point_ng.c
+@@ -0,0 +1,430 @@
++/*
++ * Copyright (C) 2011-2012 Free Software Foundation, Inc.
++ *
++ * Author: Ilya Tumaykin
++ *
++ * This file is part of GNUTLS.
++ *
++ * The GNUTLS library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public License
++ * as published by the Free Software Foundation; either version 3 of
++ * the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful, but
++ * WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public License
++ * along with this program.  If not, see <http://www.gnu.org/licenses/>
++ *
++ */
++
++#include "ecc.h"
++
++/* We use two algorithms for different cases.
++ * See http://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian.html
++ *
++ * The algorithm used for general case is "add-1998-cmo-2"
++ * It costs 12M + 4S.
++ *
++ * If Z2 = 1 we use "madd". It costs 8M + 3S.
++ *
++ * The original versions use a lot of vars:
++ * Z1Z1, Z2Z2, U1, U2, S1, S2, H, I, HHH, r, V, etc.
++ * We use only the needed minimum:
++ * Z1Z1, Z2Z2, S1, H, HHH, r, V.
++ * The rest of the vars are not needed for final
++ * computation, so we calculate them, but don't store.
++ * Follow the comments.
++ */
++
++
++#define __WITH_EXTENDED_CHECKS
++/* Check if H == 0
++ * In this case P + Q = neutral element.
++ *
++ * In most of the cases below when H == 0 then Z == 0
++ * and the resulting point lies at infinity.
++ *
++ * And the only point on the curve with Z == 0 MUST be
++ * the neutral point.
++ *
++ * Of course, if there wasn't a mistake somewhere before.
++ * We will be gullible and won't do any checks and simply
++ * return neutral point in that case.
++ */
++
++
++/*
++   Add two ECC points
++   @param P        The point to add
++   @param Q        The point to add
++   @param R        [out] The destination of the double
++   @param a        Curve's a value
++   @param modulus  The modulus of the field the ECC curve is in
++   @return         GNUTLS_E_SUCCESS on success
++
++   Note: this function WILL work when a != -3.
++   It will work in general case without a change.
++*/
++int
++ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
++                              mpz_t a, mpz_t modulus)
++{
++    mpz_t t0, t1, Z1Z1, Z2Z2, S1, H, HHH, r, V;
++    int err;
++
++    if (P == NULL || Q == NULL || R == NULL || modulus == NULL)
++        return GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
++
++    /* check all special cases first */
++
++    /* check for neutral points */
++    if (!ecc_projective_isneutral(Q, modulus)) {
++        /* P + Q = P + neutral = P */
++
++        mpz_set (R->x, P->x);
++        mpz_set (R->y, P->y);
++        mpz_set (R->z, P->z);
++
++        return GNUTLS_E_SUCCESS;
++    }
++
++    if (!ecc_projective_isneutral(P, modulus)) {
++        /* P + Q = neutral + Q = Q */
++
++        mpz_set (R->x, Q->x);
++        mpz_set (R->y, Q->y);
++        mpz_set (R->z, Q->z);
++
++        return GNUTLS_E_SUCCESS;
++    }
++
++    if ((err = mp_init_multi (&Z1Z1, &Z2Z2, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL)) != 0 )
++        return err;
++
++    /* Check if P == Q and do doubling in that case
++     * If Q == -P then P + Q = neutral element */
++    if ((mpz_cmp (P->x, Q->x) == 0) &&
++        (mpz_cmp (P->z, Q->z) == 0)) {
++
++        /* x and z coordinates match.
++         * Check if P->y = Q->y, or P->y = -Q->y */
++
++        if (mpz_cmp (P->y, Q->y) == 0) {
++            mp_clear_multi (&Z1Z1, &Z2Z2, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
++            return ecc_projective_dbl_point (P, R, a, modulus);
++        }
++
++        mpz_sub (t1, modulus, Q->y);
++        if (mpz_cmp (P->y, t1) == 0) {
++            mp_clear_multi (&Z1Z1, &Z2Z2, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
++            mpz_set_ui(R->x, 1);
++            mpz_set_ui(R->y, 1);
++            mpz_set_ui(R->z, 0);
++            return GNUTLS_E_SUCCESS;
++        }
++    }
++
++
++    /* check if Z2 == 1 and do "madd" in that case */
++    if ((mpz_cmp_ui(Q->z, 1) == 0)) {
++        mp_clear_multi (&Z1Z1, &Z2Z2, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
++        return ecc_projective_madd (P, Q, R, a, modulus);
++    }
++
++    /* no special cases occured
++     * do general routine */
++
++    /* Z1Z1 = Z1 * Z1 */
++    mpz_mul (Z1Z1, P->z, P->z);
++    mpz_mod (Z1Z1, Z1Z1, modulus);
++
++    /* Z2Z2 = Z2 * Z2 */
++    mpz_mul (Z2Z2, Q->z, Q->z);
++    mpz_mod (Z2Z2, Z2Z2, modulus);
++
++    /* t0 = X1 * Z2Z2 */
++    /* it is the original U1 */
++    mpz_mul (t0, Z2Z2, P->x);
++    mpz_mod (t0, t0, modulus);
++
++    /* t1 = X2 * Z1Z1 */
++    /* it is the original U2 */
++    mpz_mul (t1, Z1Z1, Q->x);
++    mpz_mod (t1, t1, modulus);
++
++    /* H = U2 - U1 = t1 - t0 */
++    mpz_sub (H, t1, t0);
++#ifdef __WITH_EXTENDED_CHECKS
++    err = mpz_cmp_ui(H, 0);
++    if (err < 0) {
++        mpz_add (H, H, modulus);
++    } else if (!err) {
++        mpz_set_ui (R->x, 1);
++        mpz_set_ui (R->y, 1);
++        mpz_set_ui (R->z, 0);
++        mp_clear_multi (&Z1Z1, &Z2Z2, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
++
++        return GNUTLS_E_SUCCESS;
++    }
++#else
++    if (mpz_cmp_ui (H, 0) < 0)
++        mpz_add (H, H, modulus);
++#endif
++    /* t1 = H^2 */
++    /* it is the original HH */
++    mpz_mul (t1, H, H);
++    mpz_mod (t1, t1, modulus);
++    /* HHH = H * HH */
++    mpz_mul (HHH, t1, H);
++    mpz_mod (HHH, HHH, modulus);
++
++    /* V = U1 * HH = t0 * t1 */
++    mpz_mul (V, t1, t0);
++    mpz_mod (V, V, modulus);
++
++    /* t0 = Z2 * Z2Z2 */
++    mpz_mul (t0, Z2Z2, Q->z);
++    mpz_mod (t0, t0, modulus);
++    /* S1 = Y1 * Z2 * Z2Z2 */
++    mpz_mul (S1, t0, P->y);
++    mpz_mod (S1, S1, modulus);
++
++    /* t1 = Z1 * Z1Z1 */
++    mpz_mul (t1, Z1Z1, P->z);
++    mpz_mod (t1, t1, modulus);
++    /* t0 = Y2 * Z1 * Z1Z1 */
++    /* it is the original S2 */
++    mpz_mul (t0, t1, Q->y);
++    mpz_mod (t0, t0, modulus);
++
++    /* r = S2 - S1 = t0 - S1 */
++    mpz_sub (r, t0, S1);
++    if (mpz_cmp_ui (r, 0) < 0)
++        mpz_add (r, r, modulus);
++
++    /* we've calculated all needed vars:
++     * S1, H, HHH, r, V
++     * now, we will calculate the coordinates */
++
++    /* t0 = (r)^2 */
++    mpz_mul (t0, r, r);
++    mpz_mod (t0, t0, modulus);
++    /* t0 = t0 - HHH */
++    mpz_sub (t0, t0, HHH);
++    if (mpz_cmp_ui (t0, 0) < 0)
++        mpz_add (t0, t0, modulus);
++    /* t1 = 2V */
++    mpz_add (t1, V, V);
++    if (mpz_cmp (t1, modulus) >= 0)
++        mpz_sub (t1, t1, modulus);
++    /* X = r^2 - HHH - 2V = t0 - t1 */
++    mpz_sub (R->x, t0, t1);
++    if (mpz_cmp_ui (R->x, 0) < 0)
++        mpz_add (R->x, R->x, modulus);
++
++
++    /* t1 = V - X */
++    mpz_sub (t1, V, R->x);
++    if (mpz_cmp_ui (t1, 0) < 0)
++        mpz_add (t1, t1, modulus);
++    /* t0 = r * t1 */
++    mpz_mul (t0, r, t1);
++    mpz_mod (t0, t0, modulus);
++    /* t1 = S1 * HHH */
++    mpz_mul (t1, S1, HHH);
++    mpz_mod (t1, t1, modulus);
++    /* Y = r*(V - X) - S1*HHH = t0 - t1 */
++    mpz_sub (R->y, t0, t1);
++    if (mpz_cmp_ui (R->y, 0) < 0)
++        mpz_add (R->y, R->y, modulus);
++
++
++    /* t1 = Z1 * Z2 */
++    mpz_mul (t1, P->z, Q->z);
++    mpz_mod (t1, t1, modulus);
++    /* Z = Z1 * Z2 * H = t1 * H */
++    mpz_mul (R->z, t1, H);
++    mpz_mod (R->z, R->z, modulus);
++
++    mp_clear_multi (&Z1Z1, &Z2Z2, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
++
++    return GNUTLS_E_SUCCESS;
++}
++
++/*
++   Add two ECC points, when it is known that Z2 == 1
++   @param P        The point to add
++   @param Q        The point with Z == 1 to add
++   @param R        [out] The destination of the double
++   @param a        Curve's a value
++   @param modulus  The modulus of the field the ECC curve is in
++   @return         GNUTLS_E_SUCCESS on success
++
++   Note: this function will work when a != -3.
++   It will work in general case without a change.
++*/
++int
++ecc_projective_madd (ecc_point * P, ecc_point * Q, ecc_point * R,
++                              mpz_t a, mpz_t modulus)
++{
++    mpz_t t0, t1, Z1Z1, S1, H, J, r, V;
++    int err;
++
++    if (P == NULL || Q == NULL || R == NULL || modulus == NULL)
++        return GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
++
++    /* check all special cases first */
++
++    /* check for neutral points */
++    /* Q is guaranteed not to be neutral since it has Z == 1 */
++    if (!ecc_projective_isneutral(P, modulus)) {
++        /* P + Q = neutral + Q = Q */
++
++        mpz_set (R->x, Q->x);
++        mpz_set (R->y, Q->y);
++        mpz_set (R->z, Q->z);
++
++        return GNUTLS_E_SUCCESS;
++    }
++
++    if ((err = mp_init_multi (&Z1Z1, &S1, &H, &J, &r, &V, &t0, &t1, NULL)) != 0 )
++        return err;
++
++    /* Check if P == Q and do doubling in that case
++     * If Q == -P then P + Q = neutral element */
++    if ((mpz_cmp (P->x, Q->x) == 0) &&
++        (mpz_cmp (P->z, Q->z) == 0)) {
++
++        /* x and z coordinates match.
++         * Check if P->y = Q->y, or P->y = -Q->y */
++
++        if (mpz_cmp (P->y, Q->y) == 0) {
++            mp_clear_multi (&Z1Z1, &S1, &H, &J, &r, &V, &t0, &t1, NULL);
++            return ecc_projective_dbl_point (P, R, a, modulus);
++        }
++
++        mpz_sub (t1, modulus, Q->y);
++        if (mpz_cmp (P->y, t1) == 0) {
++            mp_clear_multi (&Z1Z1, &S1, &H, &J, &r, &V, &t0, &t1, NULL);
++            mpz_set_ui(R->x, 1);
++            mpz_set_ui(R->y, 1);
++            mpz_set_ui(R->z, 0);
++            return GNUTLS_E_SUCCESS;
++        }
++    }
++
++    /* no special cases occured
++     * do madd */
++
++    /* Z1Z1 = Z1 * Z1 */
++    mpz_mul (Z1Z1, P->z, P->z);
++    mpz_mod (Z1Z1, Z1Z1, modulus);
++
++    /* t1 = X2 * Z1Z1 */
++    /* it is the original U2 */
++    mpz_mul (t1, Z1Z1, Q->x);
++    mpz_mod (t1, t1, modulus);
++    /* H = U2 - X1  = t1 - X1 */
++    mpz_sub (H, t1, P->x);
++#ifdef __WITH_EXTENDED_CHECKS
++    err = mpz_cmp_ui (H, 0);
++    if (err < 0) {
++        mpz_add (H, H, modulus);
++    } else if (!err) {
++        mpz_set_ui (R->x, 1);
++        mpz_set_ui (R->y, 1);
++        mpz_set_ui (R->z, 0);
++        mp_clear_multi (&Z1Z1, &S1, &H, &J, &r, &V, &t0, &t1, NULL);
++
++        return GNUTLS_E_SUCCESS;
++    }
++#else
++    if (mpz_cmp_ui (H, 0) < 0)
++        mpz_add (H, H, modulus);
++#endif
++    /* S1 = 2H */
++    mpz_add (S1, H, H);
++    if (mpz_cmp (S1, modulus) >= 0)
++        mpz_sub (S1, S1, modulus);
++    /* t1 = (2H)^2 */
++    /* it is the original I */
++    mpz_mul (t1, S1, S1);
++    mpz_mod (t1, t1, modulus);
++
++    /* J = H * I = H * t1 */
++    mpz_mul (J, H, t1);
++    mpz_mod (J, J, modulus);
++
++    /* V = X1 * I = X1 * t1 */
++    mpz_mul (V, P->x, t1);
++    mpz_mod (V, V, modulus);
++
++    /* t1 = Z1 * Z1Z1 */
++    mpz_mul (t1, Z1Z1, P->z);
++    mpz_mod (t1, t1, modulus);
++    /* t0 = Y2 * Z1 * Z1Z1 */
++    /* it is the original S2 */
++    mpz_mul (t0, t1, Q->y);
++    mpz_mod (t0, t0, modulus);
++
++    /* t0 = S2 - Y1 = t0 - Y1 */
++    mpz_sub (t0, t0, P->y);
++    if (mpz_cmp_ui (t0, 0) < 0)
++        mpz_add (t0, t0, modulus);
++    /* r = 2*(S2 - Y1) */
++    mpz_add (r, t0, t0);
++    if (mpz_cmp (r, modulus) >= 0)
++        mpz_sub (r, r, modulus);
++
++    /* we've calculated all needed vars:
++     * H, J, r, V
++     * now, we will calculate the coordinates */
++
++    /* t0 = (r)^2 */
++    mpz_mul (t0, r, r);
++    mpz_mod (t0, t0, modulus);
++    /* t0 = t0 - J */
++    mpz_sub (t0, t0, J);
++    if (mpz_cmp_ui (t0, 0) < 0)
++        mpz_add (t0, t0, modulus);
++    /* t1 = 2V */
++    mpz_add (t1, V, V);
++    if (mpz_cmp (t1, modulus) >= 0)
++        mpz_sub (t1, t1, modulus);
++    /* X = r^2 - J - 2V = t0 - t1 */
++    mpz_sub (R->x, t0, t1);
++    if (mpz_cmp_ui (R->x, 0) < 0)
++        mpz_add (R->x, R->x, modulus);
++
++
++    /* t1 = V - X */
++    mpz_sub (t1, V, R->x);
++    if (mpz_cmp_ui (t1, 0) < 0)
++        mpz_add (t1, t1, modulus);
++    /* t0 = r * t1 */
++    mpz_mul (t0, r, t1);
++    mpz_mod (t0, t0, modulus);
++    /* t1 = Y1 * J */
++    mpz_mul (t1, P->y, J);
++    mpz_mod (t1, t1, modulus);
++    /* t1 = 2t1 */
++    mpz_add (t1, t1, t1);
++    if (mpz_cmp (t1, modulus) >= 0)
++        mpz_sub (t1, t1, modulus);
++    /* Y = r*(V - X) - 2*Y1*J = t0 - t1 */
++    mpz_sub (R->y, t0, t1);
++    if (mpz_cmp_ui (R->y, 0) < 0)
++        mpz_add (R->y, R->y, modulus);
++
++
++    /* Z = 2*Z1*H = Z1*S1 */
++    mpz_mul (R->z, P->z, S1);
++    mpz_mod (R->z, R->z, modulus);
++
++    mp_clear_multi (&Z1Z1, &S1, &H, &J, &r, &V, &t0, &t1, NULL);
++
++    return GNUTLS_E_SUCCESS;
++}
+diff --git a/lib/nettle/ecc_projective_isneutral.c b/lib/nettle/ecc_projective_isneutral.c
+new file mode 100644
+index 0000000..c8fa3d8
+--- /dev/null
++++ b/lib/nettle/ecc_projective_isneutral.c
+@@ -0,0 +1,80 @@
++/*
++ * Copyright (C) 2011-2012 Free Software Foundation, Inc.
++ *
++ * Author: Ilya Tumaykin
++ *
++ * This file is part of GNUTLS.
++ *
++ * The GNUTLS library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public License
++ * as published by the Free Software Foundation; either version 3 of
++ * the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful, but
++ * WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public License
++ * along with this program.  If not, see <http://www.gnu.org/licenses/>
++ *
++ */
++
++#include "ecc.h"
++
++/*
++   Check if the given point is the neutral point
++   @param P        The point to check
++   @param modulus  The modulus of the field the ECC curve is in
++   @return         0 if given point is a neutral point
++   @return         1 if given point not a neutral point
++   @return         negative value in case of error
++*/
++int
++ecc_projective_isneutral (ecc_point * P, mpz_t modulus)
++{
++  mpz_t t1, t2;
++  int err;
++
++  if (P == NULL)
++    return GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
++
++  /*
++   * neutral point is a point with projective
++   * coordinates (x,y,0) such that y^2 == x^3
++   * excluding point (0,0,0)
++   */
++  if (mpz_sgn(P->z))
++      /* Z != 0 */
++      return 1;
++
++  if ((err = mp_init_multi (&t1, &t2, NULL)) != 0)
++  {
++    return err;
++  }
++
++  /* t1 == x^3 */
++  mpz_mul (t1, P->x, P->x);
++  mpz_mod (t1, t1, modulus);
++  mpz_mul (t1, t1, P->x);
++  mpz_mod (t1, t1, modulus);
++  /* t2 == y^2 */
++  mpz_mul (t2, P->y, P->y);
++  mpz_mod (t2, t2, modulus);
++
++  if ( (!mpz_cmp(t1, t2)) && (mpz_sgn(t1)) ) {
++      /* Z == 0 and X^3 == Y^2 != 0
++       * it is neutral */
++      err = 0;
++      goto done;
++  }
++
++  /* Z == 0 and X^3 != Y^2 or
++   * Z == X == Y == 0
++   * this should never happen */
++  err = GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
++  goto done;
++done:
++  mp_clear_multi (&t1, &t2, NULL);
++  return err;
++}
+diff --git a/lib/nettle/ecc_projective_negate_point.c b/lib/nettle/ecc_projective_negate_point.c
+new file mode 100644
+index 0000000..3b0fd17
+--- /dev/null
++++ b/lib/nettle/ecc_projective_negate_point.c
+@@ -0,0 +1,52 @@
++/*
++ * Copyright (C) 2011-2012 Free Software Foundation, Inc.
++ *
++ * Author: Ilya Tumaykin
++ *
++ * This file is part of GNUTLS.
++ *
++ * The GNUTLS library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public License
++ * as published by the Free Software Foundation; either version 3 of
++ * the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful, but
++ * WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public License
++ * along with this program.  If not, see <http://www.gnu.org/licenses/>
++ *
++ */
++
++#include "ecc.h"
++
++/*
++   Negate an ECC point
++   @param P        The point to negate
++   @param R        [out] The destination of the negate
++   @param modulus  The modulus of the field the ECC curve is in
++   @return         GNUTLS_E_SUCCESS on success
++*/
++int
++ecc_projective_negate_point (ecc_point * P, ecc_point * R, mpz_t modulus)
++{
++
++  if (P == NULL || R == NULL)
++    return GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
++
++  if (ecc_projective_isneutral(P, modulus)) {
++      /* we set R.y to (modulus - P.y) to avoid negative coordinates */
++      mpz_set(R->x, P->x);
++      mpz_sub(R->y, modulus, P->y);
++      mpz_set(R->z, P->z);
++  } else {
++      /* -neutral = neutral*/
++      mpz_set_ui(R->x, 1);
++      mpz_set_ui(R->y, 1);
++      mpz_set_ui(R->z, 0);
++  }
++
++  return GNUTLS_E_SUCCESS;
++}
+diff --git a/lib/nettle/wmnaf.c b/lib/nettle/wmnaf.c
+new file mode 100644
+index 0000000..c41d338
+--- /dev/null
++++ b/lib/nettle/wmnaf.c
+@@ -0,0 +1,142 @@
++/*
++ * Copyright (C) 2011-2012 Free Software Foundation, Inc.
++ *
++ * Author: Ilya Tumaykin
++ *
++ * This file is part of GNUTLS.
++ *
++ * The GNUTLS library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public License
++ * as published by the Free Software Foundation; either version 3 of
++ * the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful, but
++ * WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public License
++ * along with this program.  If not, see <http://www.gnu.org/licenses/>
++ *
++ */
++
++#include <stdlib.h>
++#include <stdio.h>
++#include <gmp.h>
++
++#include "ecc.h"
++
++/* needed constants, see ecc.h */
++#define BASEW   (1 << WMNAF_WINSIZE)       /* 2^w */
++#define BASEWW  (1 << (WMNAF_WINSIZE + 1)) /* 2^(w+1) */
++#define WBITS   (BASEWW - 1)
++
++#define ABS(x) ((x) >= 0 ? (x) : -(x))
++
++/*
++ * A local replacement for mpz_tstbit.
++ * It is needed because for negative numbers original mpz_tstbit
++ * returns an infinite number of `1`s after all bits of input number.
++ * For positive numbers it returns zeros after all bits of input number.
++ * This function mimics mpz_tstbit behavior for positive numbers in both cases.
++ */
++static int
++mpz_unitstbit (mpz_srcptr u, mp_bitcnt_t bit_index) __GMP_NOTHROW
++{
++  mp_srcptr      u_ptr      = (u)->_mp_d;
++  mp_size_t      size       = (u)->_mp_size;
++  unsigned       abs_size   = ABS(size);
++  mp_size_t      limb_index = bit_index / GMP_NUMB_BITS;
++  mp_srcptr      p          = u_ptr + limb_index;
++  mp_limb_t      limb;
++
++  if (limb_index >= abs_size)
++    return (size < 0);
++
++  limb = *p;
++
++  return (limb >> (bit_index % GMP_NUMB_BITS)) & 1;
++}
++
++/*
++ * Return an array with wMNAF representation together with its length.
++ * The result is the array with elements from the set {0, +-1, +-3, +-5, ..., +-(2^w - 1)}
++ * such that at most one of any (w + 1) consecutive digits is non-zero
++ * with exception for the the most significant (w + 1) bits.
++ * With the last property it is modified version of wNAF.
++ * Overview of this algorithm can be found, for exmaple, in
++ * Bodo Moller, Improved Techniques for Fast Exponentiation.
++ * Information Security and Cryptology – ICISC 2002, Springer-Verlag LNCS 2587, pp. 298–312
++ */
++/*
++   @param x        The number to get wMNAF for
++   @param len      [out] Destination for the length of wMNAF
++   @return         array with wMNAF representation
++   @return         NULL in case of errors
++ */
++signed char* ecc_wMNAF(mpz_t x, size_t* wmnaf_len) {
++    int b, c;
++    char sign = 1;
++    size_t i, len;
++
++    signed char *ret = NULL;
++
++    if (!(sign = mpz_sgn(x))) {
++        /* x == 0 */
++        ret = malloc(1);
++        if (ret == NULL)
++            goto done;
++
++        ret[0] = 0;
++        *wmnaf_len = 1;
++        goto done;
++    }
++
++    /* total number of bits */
++    len = mpz_sizeinbase(x, 2);
++
++    /* wMNAF is at most (len + 1) bits long */
++    ret = malloc(len + 1);
++    if (ret == NULL)
++        goto done;
++
++    /* get (w + 1) Least Significant Bits */
++    c = (mpz_getlimbn(x, 0)) & WBITS;
++
++    /* how many bits we've already processed */
++    i = 0;
++
++    while ( (c != 0) || (i + WMNAF_WINSIZE + 1 < len) ) {
++        if (c & 1) {
++            /* LSB == 1 */
++            if (c >= BASEW) {
++                b = c - BASEWW;
++            } else {
++                b = c;
++            }
++
++            c -= b;
++        } else {
++            b = 0;
++        }
++
++        ret[i++] = sign * b;
++
++        /* fill c with next LSB */
++        c >>= 1;
++        c += BASEW * mpz_unitstbit(x, i + WMNAF_WINSIZE);
++    }
++
++    *wmnaf_len = i--;
++
++    /* do modified wNAF
++     * check if wNAF starts with 1 and
++     * (w + 1)th bit is negative */
++    if ( (ret[i] == 1) && (ret[i - (WMNAF_WINSIZE + 1)] < 0) ) {
++        ret[i - (WMNAF_WINSIZE + 1)] += BASEW;
++        ret[i - 1] = 1;
++        *wmnaf_len = i;
++    }
++done:
++    return ret;
++}
+

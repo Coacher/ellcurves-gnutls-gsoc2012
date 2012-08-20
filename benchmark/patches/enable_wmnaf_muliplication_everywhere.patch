@@ -1,0 +1,57 @@
+diff --git a/lib/nettle/ecc_make_key.c b/lib/nettle/ecc_make_key.c
+index 6886846..e64fce9 100644
+--- a/lib/nettle/ecc_make_key.c
++++ b/lib/nettle/ecc_make_key.c
+@@ -104,7 +104,7 @@ ecc_make_key_ex (void *random_ctx, nettle_random_func random, ecc_key * key,
+   if (timing_res)
+     err = ecc_mulmod_timing (key->k, base, &key->pubkey, key->A, key->prime, 1);
+   else
+-    err = ecc_mulmod (key->k, base, &key->pubkey, key->A, key->prime, 1);
++    err = ecc_mulmod_wmnaf (key->k, base, &key->pubkey, key->A, key->prime, 1);
+ 
+   if (err != 0)
+     goto errkey;
+diff --git a/lib/nettle/ecc_shared_secret.c b/lib/nettle/ecc_shared_secret.c
+index c9ed006..74466ed 100644
+--- a/lib/nettle/ecc_shared_secret.c
++++ b/lib/nettle/ecc_shared_secret.c
+@@ -63,7 +63,7 @@ ecc_shared_secret (ecc_key * private_key, ecc_key * public_key,
+     }
+ 
+   if ((err =
+-       ecc_mulmod (private_key->k, &public_key->pubkey, result,
++       ecc_mulmod_wmnaf (private_key->k, &public_key->pubkey, result,
+                        private_key->A, private_key->prime, 1)) != 0)
+     {
+       goto done;
+diff --git a/lib/nettle/ecc_verify_hash.c b/lib/nettle/ecc_verify_hash.c
+index e7ebc23..445d594 100644
+--- a/lib/nettle/ecc_verify_hash.c
++++ b/lib/nettle/ecc_verify_hash.c
+@@ -111,11 +111,11 @@ ecc_verify_hash (struct dsa_signature *signature,
+   mpz_set (mQ->z, key->pubkey.z);
+ 
+   /* compute u1*mG + u2*mQ = mG */
+-  if ((err = ecc_mulmod (u1, mG, mG, key->A, key->prime, 0)) != 0)
++  if ((err = ecc_mulmod_wmnaf (u1, mG, mG, key->A, key->prime, 0)) != 0)
+     {
+       goto error;
+     }
+-  if ((err = ecc_mulmod (u2, mQ, mQ, key->A, key->prime, 0)) != 0)
++  if ((err = ecc_mulmod_wmnaf (u2, mQ, mQ, key->A, key->prime, 0)) != 0)
+     {
+       goto error;
+     }
+diff --git a/lib/nettle/pk.c b/lib/nettle/pk.c
+index d7e9a05..cb898fc 100644
+--- a/lib/nettle/pk.c
++++ b/lib/nettle/pk.c
+@@ -982,7 +982,7 @@ dsa_cleanup:
+         memcpy(&zero.z, ecc_priv.pubkey.z, sizeof(mpz_t)); /* z = 1 */
+ 
+         /* verify that k*(Gx,Gy)=(x,y) */
+-        ret = ecc_mulmod(ecc_priv.k, &zero, R, TOMPZ(params->params[ECC_A]), TOMPZ(params->params[ECC_PRIME]), 1);
++        ret = ecc_mulmod_wmnaf(ecc_priv.k, &zero, R, TOMPZ(params->params[ECC_A]), TOMPZ(params->params[ECC_PRIME]), 1);
+         if (ret != 0)
+           {
+             ret = gnutls_assert_val(GNUTLS_E_ILLEGAL_PARAMETER);

@@ -1,0 +1,52 @@
+diff --git a/lib/gnutls_global.c b/lib/gnutls_global.c
+index 3a71eae..8b84f46 100644
+--- a/lib/gnutls_global.c
++++ b/lib/gnutls_global.c
+@@ -295,6 +295,7 @@ gnutls_global_deinit (void)
+   if (_gnutls_init == 1)
+     {
+       gl_sockets_cleanup ();
++      gnutls_crypto_deinit();
+       _gnutls_rnd_deinit ();
+       _gnutls_ext_deinit ();
+       asn1_delete_structure (&_gnutls_gnutls_asn);
+diff --git a/lib/gnutls_global.h b/lib/gnutls_global.h
+index f92d321..4be3ca1 100644
+--- a/lib/gnutls_global.h
++++ b/lib/gnutls_global.h
+@@ -42,6 +42,7 @@ extern gnutls_log_func _gnutls_log_func;
+ extern gnutls_audit_log_func _gnutls_audit_log_func;
+ extern int _gnutls_log_level;
+ extern int gnutls_crypto_init (void);
++extern void gnutls_crypto_deinit (void);
+ void _gnutls_priority_prefer_aes_gcm(void);
+ 
+ #endif
+diff --git a/lib/nettle/init.c b/lib/nettle/init.c
+index 34db731..bc89e40 100644
+--- a/lib/nettle/init.c
++++ b/lib/nettle/init.c
+@@ -24,6 +24,7 @@
+ #include <gnutls_errors.h>
+ #include <gnutls_num.h>
+ #include <gnutls_mpi.h>
++#include "ecc.h"
+ 
+ /* Functions that refer to the initialization of the nettle library.
+  */
+@@ -31,5 +32,14 @@
+ int
+ gnutls_crypto_init (void)
+ {
+-  return 0;
++  return ecc_wmnaf_cache_init();
++}
++
++/* Functions that refer to the deinitialization of the nettle library.
++ */
++
++void
++gnutls_crypto_deinit (void)
++{
++  ecc_wmnaf_cache_free();
+ }

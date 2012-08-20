@@ -1,0 +1,8 @@
+`benchmark.sh` file is a benchmarking utility.
+
+It is a plain bash script. See `benchmark.sh -h` for a list of available options.
+
+If you want to test your own patches simply add them to PATCHES array in `benchmark.sh`.
+The `patches` directory contains several patches we already use for testing.
+
+When run from root user this utility will flush memory caches before running every test.

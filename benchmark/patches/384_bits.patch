@@ -1,0 +1,67 @@
+diff --git a/src/benchmark-tls.c b/src/benchmark-tls.c
+index 10bcf63..5e43e1e 100644
+--- a/src/benchmark-tls.c
++++ b/src/benchmark-tls.c
+@@ -44,7 +44,7 @@ const char* side = "";
+ 
+ #define PRIO_DH "NONE:+VERS-TLS1.0:+AES-128-CBC:+SHA1:+SIGN-ALL:+COMP-NULL:+DHE-RSA"
+ #define PRIO_ECDH "NONE:+VERS-TLS1.0:+AES-128-CBC:+SHA1:+SIGN-ALL:+COMP-NULL:+ECDHE-RSA:+CURVE-SECP192R1"
+-#define PRIO_ECDHE_ECDSA "NONE:+VERS-TLS1.0:+AES-128-CBC:+SHA1:+SIGN-ALL:+COMP-NULL:+ECDHE-ECDSA:+CURVE-SECP192R1"
++#define PRIO_ECDHE_ECDSA "NONE:+VERS-TLS1.0:+AES-128-CBC:+SHA1:+SIGN-ALL:+COMP-NULL:+ECDHE-ECDSA:+CURVE-SECP384R1"
+ #define PRIO_RSA "NONE:+VERS-TLS1.0:+AES-128-CBC:+SHA1:+SIGN-ALL:+COMP-NULL:+RSA"
+ 
+ #define PRIO_AES_CBC_SHA1 "NONE:+VERS-TLS1.0:+AES-128-CBC:+SHA1:+SIGN-ALL:+COMP-NULL:+ANON-DH"
+@@ -103,7 +103,7 @@ static unsigned char server_key_pem[] =
+ 
+ #else
+ 
+-static const int rsa_bits = 1840, ec_bits = 192;
++static const int rsa_bits = 1840, ec_bits = 384;
+ 
+ /* DH of 1840 bits that is pretty close equivalent to 192 bits of ECDH.
+  */
+@@ -171,21 +171,33 @@ static unsigned char server_key_pem[] =
+ 
+ static unsigned char server_ecc_key_pem[] =
+   "-----BEGIN EC PRIVATE KEY-----\n"
+-  "MGACAQEEGQCovzs4UsfRncfJXO3WOZUe/Zf+usKzEcWgCgYIKoZIzj0DAQGhNAMy\n"
+-  "AAREwuCcUHKNWyetsymkAaqA0GCgksI2AjewpOWsraGrfea3GPw1uuyOQRMR7kka\n"
+-  "v6s=\n"
++  "MIGkAgEBBDAQDLivcf16hgZ5230OombbEOM9fqxxryS6FnEtczjld/8aa38NlFVa\n"
++  "KWR/TXI9MtSgBwYFK4EEACKhZANiAATBIm34YtVIwDYUb+hrTlXuABEGAri5LJeN\n"
++  "6GMS40cHOVLK/xAm2zTAiA7Js9DYpwmf2NNHlUljfaJRnJ4sg9/B4zR3inZjwdL0\n"
++  "oy2/NMem90xwiNFMLYoNH7QD9gRFSsw=\n"
+   "-----END EC PRIVATE KEY-----\n";
+ 
+ static unsigned char server_ecc_cert_pem[] =
+   "-----BEGIN CERTIFICATE-----\n"
+-  "MIIBYDCCARWgAwIBAgIETuILrDAKBggqhkjOPQQDAjAcMQswCQYDVQQGEwJCRTEN\n"
+-  "MAsGA1UEChMEVGVzdDAeFw0xMTEyMDkxMzIyNTJaFw0xNzA4MTExMzIyNTlaMBwx\n"
+-  "CzAJBgNVBAYTAkJFMQ0wCwYDVQQKEwRUZXN0MEkwEwYHKoZIzj0CAQYIKoZIzj0D\n"
+-  "AQEDMgAERMLgnFByjVsnrbMppAGqgNBgoJLCNgI3sKTlrK2hq33mtxj8NbrsjkET\n"
+-  "Ee5JGr+ro1UwUzAMBgNVHRMBAf8EAjAAMBMGA1UdJQQMMAoGCCsGAQUFBwMBMA8G\n"
+-  "A1UdDwEB/wQFAwMHgAAwHQYDVR0OBBYEFKeR27mtYWFaH43U2zEvjd28Zf+CMAoG\n"
+-  "CCqGSM49BAMCAzkAMDYCGQD7WWWiFV+ddI7tIyMFepKFA1dX4nlc/+ICGQCCPdHc\n"
+-  "gMyHv2XyfOGHLhq0HmDTOOiwfC4=\n"
++  "MIIDhDCCAwmgAwIBAgIBBzAKBggqhkjOPQQDAzCBuDELMAkGA1UEBhMCR1IxEjAQ\n"
++  "BgNVBAoTCUtva28gaW5jLjEXMBUGA1UECxMOc2xlZXBpbmcgZGVwdC4xDzANBgNV\n"
++  "BAgTBkF0dGlraTEVMBMGA1UEAxMMQ2luZHkgTGF1cGVyMRcwFQYKCZImiZPyLGQB\n"
++  "ARMHY2xhdXBlcjEMMAoGA1UEDBMDRHIuMQ8wDQYDVQRBEwZqYWNrYWwxHDAaBgkq\n"
++  "hkiG9w0BCQEWDW5vbmVAbm9uZS5vcmcwIhgPMjAxMjA4MTAxMjIzMjRaGA8yMDE5\n"
++  "MDkxMzEyMjMyNFowgbgxCzAJBgNVBAYTAkdSMRIwEAYDVQQKEwlLb2tvIGluYy4x\n"
++  "FzAVBgNVBAsTDnNsZWVwaW5nIGRlcHQuMQ8wDQYDVQQIEwZBdHRpa2kxFTATBgNV\n"
++  "BAMTDENpbmR5IExhdXBlcjEXMBUGCgmSJomT8ixkAQETB2NsYXVwZXIxDDAKBgNV\n"
++  "BAwTA0RyLjEPMA0GA1UEQRMGamFja2FsMRwwGgYJKoZIhvcNAQkBFg1ub25lQG5v\n"
++  "bmUub3JnMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEwSJt+GLVSMA2FG/oa05V7gAR\n"
++  "BgK4uSyXjehjEuNHBzlSyv8QJts0wIgOybPQ2KcJn9jTR5VJY32iUZyeLIPfweM0\n"
++  "d4p2Y8HS9KMtvzTHpvdMcIjRTC2KDR+0A/YERUrMo4HgMIHdMA8GA1UdEwEB/wQF\n"
++  "MAMBAf8wSwYDVR0RBEQwQoIMd3d3Lm5vbmUub3JnghN3d3cubW9yZXRoYW5vbmUu\n"
++  "b3Jnghd3d3cuZXZlbm1vcmV0aGFub25lLm9yZ4cEwKgBATAdBgNVHSUEFjAUBggr\n"
++  "BgEFBQcDAQYIKwYBBQUHAwkwDwYDVR0PAQH/BAUDAwekADAdBgNVHQ4EFgQUbxxU\n"
++  "TsgOP1anXNQsDmPuDyLftq4wLgYDVR0fBCcwJTAjoCGgH4YdaHR0cDovL3d3dy5n\n"
++  "ZXRjcmwuY3JsL2dldGNybC8wCgYIKoZIzj0EAwMDaQAwZgIxALmSsaA6n1+DpDWe\n"
++  "rpcoCVp4fgY/EDKP6W48YX/5+Q1LGyCYJbzzrMPsyCuLqyCkxAIxAPA+rhxQJ+Sh\n"
++  "C/z1+gqv8u7NqjPDE47GRRNMX4FkxaPfsljIJpAivb61gGwc+D+YkA==\n"
+   "-----END CERTIFICATE-----\n";
+ 
+ const gnutls_datum_t server_cert = { server_cert_pem,

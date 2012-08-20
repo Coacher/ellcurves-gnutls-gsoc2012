@@ -29,7 +29,7 @@ index dc0d36c..d910173 100644
  /* low level functions */
  ecc_point *ecc_new_point(void);
 diff --git a/lib/nettle/ecc_make_key.c b/lib/nettle/ecc_make_key.c
-index e64fce9..b80ff06 100644
+index e64fce9..7420101 100644
 --- a/lib/nettle/ecc_make_key.c
 +++ b/lib/nettle/ecc_make_key.c
 @@ -38,6 +38,7 @@
@@ -62,7 +62,7 @@ index e64fce9..b80ff06 100644
    if (timing_res)
      err = ecc_mulmod_timing (key->k, base, &key->pubkey, key->A, key->prime, 1);
    else
--    err = ecc_mulmod (key->k, base, &key->pubkey, key->A, key->prime, 1);
+-    err = ecc_mulmod_wmnaf (key->k, base, &key->pubkey, key->A, key->prime, 1);
 +    err = ecc_mulmod_wmnaf_cached (key->k, curve_id, &key->pubkey, key->A, key->prime, 1);
  
    if (err != 0)
@@ -85,6 +85,35 @@ index e64fce9..b80ff06 100644
  
    mp_clear_multi (&prime, &order, &A, &B, &Gx, &Gy, NULL);
  cleanup:
+diff --git a/lib/nettle/ecc_sign_hash.c b/lib/nettle/ecc_sign_hash.c
+index bd78da0..74ebe16 100644
+--- a/lib/nettle/ecc_sign_hash.c
++++ b/lib/nettle/ecc_sign_hash.c
+@@ -38,12 +38,14 @@
+   @param prng      An active PRNG state
+   @param wprng     The index of the PRNG you wish to use
+   @param key       A private ECC key
++  @param curve_id  The id of the curve we are working with
+   @return 0 if successful
+ */
+ int
+ ecc_sign_hash (const unsigned char *in, unsigned long inlen,
+                struct dsa_signature *sig,
+-               void *random_ctx, nettle_random_func random, ecc_key * key)
++               void *random_ctx, nettle_random_func random, ecc_key * key,
++               gnutls_ecc_curve_t curve_id)
+ {
+   ecc_key pubkey;
+   mpz_t e;
+@@ -72,7 +74,7 @@ ecc_sign_hash (const unsigned char *in, unsigned long inlen,
+     {
+       if ((err =
+            ecc_make_key_ex (random_ctx, random, &pubkey, key->prime,
+-                            key->order, key->A, key->B, key->Gx, key->Gy, 1)) != 0)
++                            key->order, key->A, key->B, key->Gx, key->Gy, curve_id, 1)) != 0)
+         {
+           goto errnokey;
+         }
 diff --git a/lib/nettle/ecc_verify_hash.c b/lib/nettle/ecc_verify_hash.c
 index 445d594..fc31735 100644
 --- a/lib/nettle/ecc_verify_hash.c

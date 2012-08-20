@@ -1,0 +1,259 @@
+diff --git a/lib/nettle/ecc.h b/lib/nettle/ecc.h
+index d910173..3e93c22 100644
+--- a/lib/nettle/ecc.h
++++ b/lib/nettle/ecc.h
+@@ -42,13 +42,6 @@
+ /* max private key size */
+ #define ECC_MAXSIZE  66
+ 
+-/* wMNAF window size */
+-#define WMNAF_WINSIZE 4
+-
+-/* length of a single array of precomputed values for wMNAF
+- * we have two such arrays for positive and negative multipliers */
+-#define WMNAF_PRECOMPUTED_LENGTH (1 << (WMNAF_WINSIZE - 1))
+-
+ /** Structure defines a NIST GF(p) curve */
+ typedef struct {
+    /** The size of the curve in octets */
+@@ -147,7 +140,7 @@ int ecc_mulmod(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int
+ int ecc_mulmod_timing(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int map);
+ 
+ /* wMNAF-based mulmod */
+-signed char* ecc_wMNAF(mpz_t x, size_t *ret_len);
++signed char* ecc_wMNAF(mpz_t x, unsigned int w, size_t *ret_len);
+ int ecc_mulmod_wmnaf(mpz_t k, ecc_point *G, ecc_point *R, mpz_t a, mpz_t modulus, int map);
+ 
+ /* cache-enabled wMNAF-based mulmod */
+diff --git a/lib/nettle/ecc_mulmod_wmnaf.c b/lib/nettle/ecc_mulmod_wmnaf.c
+index 315d0ea..cea926c 100644
+--- a/lib/nettle/ecc_mulmod_wmnaf.c
++++ b/lib/nettle/ecc_mulmod_wmnaf.c
+@@ -22,6 +22,16 @@
+ 
+ #include "ecc.h"
+ 
++/* size of sliding window, don't change this! */
++#ifndef WINSIZE
++    #define WINSIZE 4
++#endif
++
++/* length of single array of precomputed values for ecc_mulmod_wmnaf
++ * we have two such arrays for positive and negative multipliers */
++#ifndef PRECOMPUTE_LENGTH
++    #define PRECOMPUTE_LENGTH (1 << (WINSIZE - 1))
++#endif
+ 
+ /*
+    Perform a point multiplication using wMNAF representation
+@@ -37,7 +47,7 @@ int
+ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
+                 int map)
+ {
+-    ecc_point *pos[WMNAF_PRECOMPUTED_LENGTH], *neg[WMNAF_PRECOMPUTED_LENGTH];
++    ecc_point *pos[PRECOMPUTE_LENGTH], *neg[PRECOMPUTE_LENGTH];
+     int        i, j, err;
+ 
+     signed char* wmnaf = NULL;
+@@ -48,7 +58,7 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
+         return GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
+ 
+     /* alloc ram for precomputed values */
+-    for (i = 0; i < WMNAF_PRECOMPUTED_LENGTH; ++i) {
++    for (i = 0; i < PRECOMPUTE_LENGTH; ++i) {
+         pos[i] = ecc_new_point();
+         neg[i] = ecc_new_point();
+         if (pos[i] == NULL || neg[i] == NULL) {
+@@ -75,7 +85,7 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
+         goto done;
+ 
+     /* fill in kG for k = 5, 7, ..., (2^w - 1) */
+-    for (j = 2; j < WMNAF_PRECOMPUTED_LENGTH; ++j) {
++    for (j = 2; j < PRECOMPUTE_LENGTH; ++j) {
+         if ((err = ecc_projective_add_point_ng(pos[j-1], pos[0], pos[j], a, modulus)) != 0)
+            goto done;
+     }
+@@ -88,13 +98,13 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
+     mpz_set (pos[0]->z, G->z);
+ 
+     /* neg[i] == -pos[i] */
+-    for (j = 0; j < WMNAF_PRECOMPUTED_LENGTH; ++j) {
++    for (j = 0; j < PRECOMPUTE_LENGTH; ++j) {
+         if ((err = ecc_projective_negate_point(pos[j], neg[j], modulus)) != 0)
+             goto done;
+     }
+ 
+     /* calculate wMNAF */
+-    wmnaf = ecc_wMNAF(k, &wmnaf_len);
++    wmnaf = ecc_wMNAF(k, WINSIZE, &wmnaf_len);
+     if (!wmnaf) {
+         err = GNUTLS_E_INTERNAL_ERROR;
+         goto done;
+@@ -133,7 +143,7 @@ ecc_mulmod_wmnaf (mpz_t k, ecc_point * G, ecc_point * R, mpz_t a, mpz_t modulus,
+         err = GNUTLS_E_SUCCESS;
+     }
+ done:
+-    for (i = 0; i < WMNAF_PRECOMPUTED_LENGTH; ++i) {
++    for (i = 0; i < PRECOMPUTE_LENGTH; ++i) {
+         ecc_del_point(pos[i]);
+         ecc_del_point(neg[i]);
+     }
+diff --git a/lib/nettle/ecc_mulmod_wmnaf_cached.c b/lib/nettle/ecc_mulmod_wmnaf_cached.c
+index 06e48e0..4376950 100644
+--- a/lib/nettle/ecc_mulmod_wmnaf_cached.c
++++ b/lib/nettle/ecc_mulmod_wmnaf_cached.c
+@@ -26,6 +26,16 @@
+ 
+ #include "ecc.h"
+ 
++/* size of sliding window, don't change this! */
++#ifndef WINSIZE
++    #define WINSIZE 4
++#endif
++
++/* length of single array of precomputed values for caching
++ * we have two such arrays for positive and negative multipliers */
++#ifndef PRECOMPUTE_LENGTH
++    #define PRECOMPUTE_LENGTH (1 << (WINSIZE - 1))
++#endif
+ 
+ /* per-curve cache structure */
+ typedef struct {
+@@ -33,10 +43,10 @@ typedef struct {
+     gnutls_ecc_curve_t id;
+ 
+     /** The array of positive multipliers of G */
+-    ecc_point *pos[WMNAF_PRECOMPUTED_LENGTH];
++    ecc_point *pos[PRECOMPUTE_LENGTH];
+ 
+     /** The array of negative multipliers of G */
+-    ecc_point *neg[WMNAF_PRECOMPUTED_LENGTH];
++    ecc_point *neg[PRECOMPUTE_LENGTH];
+ } gnutls_ecc_curve_cache_entry_t;
+ 
+ /* global cache */
+@@ -46,7 +56,7 @@ static gnutls_ecc_curve_cache_entry_t* ecc_wmnaf_cache = NULL;
+ static void _ecc_wmnaf_cache_entry_free(gnutls_ecc_curve_cache_entry_t* p) {
+     int i;
+ 
+-    for(i = 0; i < WMNAF_PRECOMPUTED_LENGTH; ++i) {
++    for(i = 0; i < PRECOMPUTE_LENGTH; ++i) {
+         ecc_del_point(p->pos[i]);
+         ecc_del_point(p->neg[i]);
+     }
+@@ -106,7 +116,7 @@ static int _ecc_wmnaf_cache_entry_init(gnutls_ecc_curve_cache_entry_t* p, \
+     mpz_set_str(a, st->A, 16);
+ 
+     /* alloc ram for precomputed values */
+-    for (i = 0; i < WMNAF_PRECOMPUTED_LENGTH; ++i) {
++    for (i = 0; i < PRECOMPUTE_LENGTH; ++i) {
+         p->pos[i] = ecc_new_point();
+         p->neg[i] = ecc_new_point();
+         if (p->pos[i] == NULL || p->neg[i] == NULL) {
+@@ -134,7 +144,7 @@ static int _ecc_wmnaf_cache_entry_init(gnutls_ecc_curve_cache_entry_t* p, \
+         goto done;
+ 
+     /* fill in kG for k = 5, 7, ..., (2^w - 1) */
+-    for (j = 2; j < WMNAF_PRECOMPUTED_LENGTH; ++j) {
++    for (j = 2; j < PRECOMPUTE_LENGTH; ++j) {
+         if ((err = ecc_projective_add_point_ng(p->pos[j-1], p->pos[0], p->pos[j], a, modulus)) != 0)
+            goto done;
+     }
+@@ -148,7 +158,7 @@ static int _ecc_wmnaf_cache_entry_init(gnutls_ecc_curve_cache_entry_t* p, \
+     /* map to affine all elements in pos
+      * this will allow to use ecc_projective_madd later
+      * set neg[i] == -pos[i] */
+-    for (j = 0; j < WMNAF_PRECOMPUTED_LENGTH; ++j) {
++    for (j = 0; j < PRECOMPUTE_LENGTH; ++j) {
+         if ((err = ecc_map(p->pos[j], modulus)) != 0)
+             goto done;
+ 
+@@ -229,7 +239,7 @@ ecc_mulmod_wmnaf_cached (mpz_t k, gnutls_ecc_curve_t id, ecc_point * R, mpz_t a,
+         return GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
+ 
+     /* calculate wMNAF */
+-    wmnaf = ecc_wMNAF(k, &wmnaf_len);
++    wmnaf = ecc_wMNAF(k, WINSIZE, &wmnaf_len);
+     if (!wmnaf) {
+         err = GNUTLS_E_INTERNAL_ERROR;
+         goto done;
+diff --git a/lib/nettle/wmnaf.c b/lib/nettle/wmnaf.c
+index c41d338..7c91ca6 100644
+--- a/lib/nettle/wmnaf.c
++++ b/lib/nettle/wmnaf.c
+@@ -26,11 +26,6 @@
+ 
+ #include "ecc.h"
+ 
+-/* needed constants, see ecc.h */
+-#define BASEW   (1 << WMNAF_WINSIZE)       /* 2^w */
+-#define BASEWW  (1 << (WMNAF_WINSIZE + 1)) /* 2^(w+1) */
+-#define WBITS   (BASEWW - 1)
+-
+ #define ABS(x) ((x) >= 0 ? (x) : -(x))
+ 
+ /*
+@@ -70,15 +65,21 @@ mpz_unitstbit (mpz_srcptr u, mp_bitcnt_t bit_index) __GMP_NOTHROW
+  */
+ /*
+    @param x        The number to get wMNAF for
++   @param w        Window size
+    @param len      [out] Destination for the length of wMNAF
+    @return         array with wMNAF representation
+    @return         NULL in case of errors
+  */
+-signed char* ecc_wMNAF(mpz_t x, size_t* wmnaf_len) {
++signed char* ecc_wMNAF(mpz_t x, unsigned int w, size_t* wmnaf_len) {
+     int b, c;
+     char sign = 1;
+     size_t i, len;
+ 
++    /* needed constants */
++    int basew    = 1 << w;       /* 2^w */
++    int baseww   = 1 << (w + 1); /* 2^(w+1) */
++    int mask     = baseww - 1;
++
+     signed char *ret = NULL;
+ 
+     if (!(sign = mpz_sgn(x))) {
+@@ -101,16 +102,16 @@ signed char* ecc_wMNAF(mpz_t x, size_t* wmnaf_len) {
+         goto done;
+ 
+     /* get (w + 1) Least Significant Bits */
+-    c = (mpz_getlimbn(x, 0)) & WBITS;
++    c = (mpz_getlimbn(x, 0)) & mask;
+ 
+     /* how many bits we've already processed */
+     i = 0;
+ 
+-    while ( (c != 0) || (i + WMNAF_WINSIZE + 1 < len) ) {
++    while ( (c != 0) || (i + w + 1 < len) ) {
+         if (c & 1) {
+             /* LSB == 1 */
+-            if (c >= BASEW) {
+-                b = c - BASEWW;
++            if (c >= basew) {
++                b = c - baseww;
+             } else {
+                 b = c;
+             }
+@@ -124,7 +125,7 @@ signed char* ecc_wMNAF(mpz_t x, size_t* wmnaf_len) {
+ 
+         /* fill c with next LSB */
+         c >>= 1;
+-        c += BASEW * mpz_unitstbit(x, i + WMNAF_WINSIZE);
++        c += basew * mpz_unitstbit(x, i + w);
+     }
+ 
+     *wmnaf_len = i--;
+@@ -132,8 +133,8 @@ signed char* ecc_wMNAF(mpz_t x, size_t* wmnaf_len) {
+     /* do modified wNAF
+      * check if wNAF starts with 1 and
+      * (w + 1)th bit is negative */
+-    if ( (ret[i] == 1) && (ret[i - (WMNAF_WINSIZE + 1)] < 0) ) {
+-        ret[i - (WMNAF_WINSIZE + 1)] += BASEW;
++    if ( (ret[i] == 1) && (ret[i - w - 1] < 0)) {
++        ret[i - w - 1] += basew;
+         ret[i - 1] = 1;
+         *wmnaf_len = i;
+     }

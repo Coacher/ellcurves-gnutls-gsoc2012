@@ -100,7 +100,10 @@ make_header() {
 
 test_feature() {
     echo -e -n "\tRunning benchmark...\t"
-    ${SOURCEDIR}/src/gnutls-cli --benchmark-tls &>> "${OUTDIR}/$1_results" || die "Failed to run test"
+    local i
+    for (( i = 0; i < ${TESTRUNS}; ++i )); do
+        ${SOURCEDIR}/src/gnutls-cli --benchmark-tls &>> "${OUTDIR}/$1_results" || die "Failed to run test"
+    done
     echo "done."
 }
 

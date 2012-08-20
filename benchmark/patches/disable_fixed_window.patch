@@ -99,7 +99,7 @@ index 315d0ea..cea926c 100644
          ecc_del_point(neg[i]);
      }
 diff --git a/lib/nettle/ecc_mulmod_wmnaf_cached.c b/lib/nettle/ecc_mulmod_wmnaf_cached.c
-index 06e48e0..4376950 100644
+index 06e48e0..cb678f3 100644
 --- a/lib/nettle/ecc_mulmod_wmnaf_cached.c
 +++ b/lib/nettle/ecc_mulmod_wmnaf_cached.c
 @@ -26,6 +26,16 @@
@@ -177,6 +177,24 @@ index 06e48e0..4376950 100644
      if (!wmnaf) {
          err = GNUTLS_E_INTERNAL_ERROR;
          goto done;
+@@ -305,7 +315,7 @@ ecc_mulmod_wmnaf_cached_timing (mpz_t k, gnutls_ecc_curve_t id, ecc_point * R, m
+         return GNUTLS_E_MEMORY_ERROR;
+ 
+     /* calculate wMNAF */
+-    wmnaf = ecc_wMNAF(k, &wmnaf_len);
++    wmnaf = ecc_wMNAF(k, WINSIZE, &wmnaf_len);
+     if (!wmnaf) {
+         err = GNUTLS_E_INTERNAL_ERROR;
+         goto done;
+@@ -342,7 +352,7 @@ ecc_mulmod_wmnaf_cached_timing (mpz_t k, gnutls_ecc_curve_t id, ecc_point * R, m
+         } else {
+             /* we add middle element of pos array as a general case
+              * there is no real difference between using pos and neg */
+-            if ((err = ecc_projective_madd(R, cache->pos[(WMNAF_PRECOMPUTED_LENGTH / 2)], T, a, modulus)) != 0)
++            if ((err = ecc_projective_madd(R, cache->pos[(PRECOMPUTE_LENGTH / 2)], T, a, modulus)) != 0)
+                 goto done;
+         }
+     }
 diff --git a/lib/nettle/wmnaf.c b/lib/nettle/wmnaf.c
 index c41d338..7c91ca6 100644
 --- a/lib/nettle/wmnaf.c

@@ -851,6 +851,9 @@ GNUTLS_PRIVATE {
     ecc_wmnaf_cache_free;
     ecc_mulmod_wmnaf_cached;
     ecc_mulmod_wmnaf_cached_lookup;
+    # Internal symbols needed for timing testing:
+    ecc_mulmod_wmnaf_cached_timing;
+    ecc_mulmod_timing;
   local:
     *;
 };

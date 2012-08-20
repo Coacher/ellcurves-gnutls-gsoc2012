@@ -6,11 +6,12 @@
 #include "ecc.h"
 #include "ecc_point.h"
 
+/* 540 is near 512 and divisible by 3,4,5
+ * and +1 bit for storing trailing zero */
 #define BIT_LENGTH 541
 
-/* these are our multipliers
- * their names represent density of ones
- * in binary representation */
+/* strings to store multipliers
+ * their names represent bits density */
 char zero           [BIT_LENGTH];
 char one_fifth      [BIT_LENGTH];
 char one_fourth     [BIT_LENGTH];
@@ -23,102 +24,31 @@ char three_fourths  [BIT_LENGTH];
 char four_fifths    [BIT_LENGTH];
 char one            [BIT_LENGTH];
 
-char* multipliers[11];
+#define NUM_OF_MULTIPLIERS 11
 
-static void init_multipliers(void) {
-    int i;
+struct multiplier {
+    char* bitstring;
+    char* desc;
+} multipliers[NUM_OF_MULTIPLIERS] = {
+    zero,           "zero\t\t",
+    one_fifth,      "one fifth\t",
+    one_fourth,     "one fourth\t",
+    one_third,      "one third\t",
+    two_fifths,     "two fifths\t",
+    half,           "half\t\t",
+    three_fifths,   "three fifths\t",
+    two_thirds,     "two thirds\t",
+    three_fourths,  "three fourths\t",
+    four_fifths,    "four fifths\t",
+    one,            "one\t\t",
+};
 
-    for (i = 0; i < BIT_LENGTH - 1; ++i) {
-        zero[i] = '0';
-
-        one[i]  = '1';
-
-        if ((i % 5) == 1) {
-            one_fifth[i] = '1';
-        } else {
-            one_fifth[i] = '0';
-        }
-
-        if ((i % 5) == 2) {
-            two_fifths[i] = '1';
-        } else {
-            two_fifths[i] = '0';
-        }
-
-        if ((i % 5) == 3) {
-            three_fifths[i] = '1';
-        } else {
-            three_fifths[i] = '0';
-        }
-
-        if ((i % 5) == 4) {
-            four_fifths[i] = '1';
-        } else {
-            four_fifths[i] = '0';
-        }
-
-        if ((i % 4) == 1) {
-            one_fourth[i] = '1';
-        } else {
-            one_fourth[i] = '0';
-        }
-
-        if ((i % 4) == 3) {
-            three_fourths[i] = '1';
-        } else {
-            three_fourths[i] = '0';
-        }
-
-        if ((i % 3) == 1) {
-            one_third[i] = '1';
-        } else {
-            one_third[i] = '0';
-        }
-
-        if ((i % 3) == 2) {
-            two_thirds[i] = '1';
-        } else {
-            two_thirds[i] = '0';
-        }
-
-        if ((i % 2) == 0) {
-            half[i] = '1';
-        } else {
-            half[i] = '0';
-        }
-    }
-
-    zero[0] = '1';
-
-    zero            [BIT_LENGTH - 1] = '\0';
-    one_fifth       [BIT_LENGTH - 1] = '\0';
-    one_fourth      [BIT_LENGTH - 1] = '\0';
-    one_third       [BIT_LENGTH - 1] = '\0';
-    two_fifths      [BIT_LENGTH - 1] = '\0';
-    half            [BIT_LENGTH - 1] = '\0';
-    three_fifths    [BIT_LENGTH - 1] = '\0';
-    two_thirds      [BIT_LENGTH - 1] = '\0';
-    three_fourths   [BIT_LENGTH - 1] = '\0';
-    four_fifths     [BIT_LENGTH - 1] = '\0';
-    one             [BIT_LENGTH - 1] = '\0';
-
-    multipliers[0] = zero;
-    multipliers[1] = one_fifth;
-    multipliers[2] = one_fourth;
-    multipliers[3] = one_third;
-    multipliers[4] = two_fifths;
-    multipliers[5] = half;
-    multipliers[6] = three_fifths;
-    multipliers[7] = two_thirds;
-    multipliers[8] = three_fourths;
-    multipliers[9] = four_fifths;
-    multipliers[10]= one;
-
-}
+/* set bitstrings */
+static void init_multipliers(void);
 
 #define NUM_OF_TRIES_PER_CURVE 1
 
-#define NUM_OF_TRIES_PER_MULT 1000
+#define NUM_OF_TRIES_PER_MULTIPLIER 1000
 
 #define MAP 1
 
@@ -158,36 +88,40 @@ int main(void) {
         mpz_set_str(a,       p->A,      16);
 
         for (i = 0; i < NUM_OF_TRIES_PER_CURVE; ++i) {
-                for (l = 0; l < 11; ++l) {
-                    mpz_set_str(k, multipliers[l], 2);
+                for (l = 0; l < NUM_OF_MULTIPLIERS; ++l) {
+                    printf("Testing %s bit density\t", multipliers[l].desc);
 
+                    mpz_set_str(k, multipliers[l].bitstring, 2);
+
+                    /* run original code */
+                    classic_start = clock();
+                    for (j = 0; j < NUM_OF_TRIES_PER_MULTIPLIER; ++j) {
+                        ecc_mulmod_timing ( k,  G,  Rclassic,   a,  modulus,    MAP);
+                    }
+                    classic_stop = clock();
+
+                    classic_time = (double) (classic_stop - classic_start) / CLOCKS_PER_SEC;
+
+                    /* run wmnaf code */
                     wmnaf_start = clock();
-                    for (j = 0; j < NUM_OF_TRIES_PER_MULT; ++j) {
-                        ecc_mulmod_wmnaf_cached_timing(k, p->id,  Rtiming,  a, modulus, MAP);
+                    for (j = 0; j < NUM_OF_TRIES_PER_MULTIPLIER; ++j) {
+                        ecc_mulmod_wmnaf_cached_timing ( k, p->id,  Rtiming,  a,  modulus,    MAP);
                     }
                     wmnaf_stop = clock();
 
                     wmnaf_time = (double) (wmnaf_stop - wmnaf_start) / CLOCKS_PER_SEC;
 
 
-                    classic_start = clock();
-                    for (j = 0; j < NUM_OF_TRIES_PER_MULT; ++j) {
-                        ecc_mulmod_timing             (k,     G, Rclassic,  a, modulus, MAP);
-                    }
-                    classic_stop = clock();
-
-                    classic_time = (double) (classic_stop - classic_start) / CLOCKS_PER_SEC;
-
-
                     check = ( (!mpz_cmp(Rtiming->x, Rclassic->x)) && (!mpz_cmp(Rtiming->y, Rclassic->y)) );
 
-                    printf("wmnaf time: %f, classic time: %f, check: %i\n", wmnaf_time, classic_time, check);
+                    printf("wMNAF time: %.3f, classic time: %.3f, check: %i\n", wmnaf_time, classic_time, check);
                 }
         }
         printf("\n");
     );
 
     ecc_wmnaf_cache_free();
+
     ecc_del_point(Rtiming);
     ecc_del_point(Rclassic);
     ecc_del_point(G);
@@ -195,4 +129,88 @@ int main(void) {
     mpz_clears(k, a, modulus, NULL);
 
     return 0;
+}
+
+static void init_multipliers(void) {
+    int i;
+
+    for (i = 0; i < (BIT_LENGTH - 1); ++i) {
+
+        zero[i] = '0';
+
+        one[i]  = '1';
+
+        /* fifths */
+        if ((i % 5) == 1) {
+            one_fifth[i] = '1';
+        } else {
+            one_fifth[i] = '0';
+        }
+
+        if ((i % 5) == 2) {
+            two_fifths[i] = '1';
+        } else {
+            two_fifths[i] = '0';
+        }
+
+        if ((i % 5) == 3) {
+            three_fifths[i] = '1';
+        } else {
+            three_fifths[i] = '0';
+        }
+
+        if ((i % 5) == 4) {
+            four_fifths[i] = '1';
+        } else {
+            four_fifths[i] = '0';
+        }
+
+        /* fourths */
+        if ((i % 4) == 1) {
+            one_fourth[i] = '1';
+        } else {
+            one_fourth[i] = '0';
+        }
+
+        if ((i % 4) == 3) {
+            three_fourths[i] = '1';
+        } else {
+            three_fourths[i] = '0';
+        }
+
+        /* thirds */
+        if ((i % 3) == 1) {
+            one_third[i] = '1';
+        } else {
+            one_third[i] = '0';
+        }
+
+        if ((i % 3) == 2) {
+            two_thirds[i] = '1';
+        } else {
+            two_thirds[i] = '0';
+        }
+
+        /* half */
+        if ((i % 2) == 0) {
+            half[i] = '1';
+        } else {
+            half[i] = '0';
+        }
+
+    }
+
+    zero[0] = '1';
+
+    zero            [BIT_LENGTH - 1] = '\0';
+    one_fifth       [BIT_LENGTH - 1] = '\0';
+    one_fourth      [BIT_LENGTH - 1] = '\0';
+    one_third       [BIT_LENGTH - 1] = '\0';
+    two_fifths      [BIT_LENGTH - 1] = '\0';
+    half            [BIT_LENGTH - 1] = '\0';
+    three_fifths    [BIT_LENGTH - 1] = '\0';
+    two_thirds      [BIT_LENGTH - 1] = '\0';
+    three_fourths   [BIT_LENGTH - 1] = '\0';
+    four_fifths     [BIT_LENGTH - 1] = '\0';
+    one             [BIT_LENGTH - 1] = '\0';
 }

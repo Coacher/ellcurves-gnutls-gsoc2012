@@ -33,23 +33,23 @@
 
 /*
    Double an ECC point
-   @param P   The point to double
+   @param P         The point to double
    @param R   [out] The destination of the double
-   @param modulus  The modulus of the field the ECC curve is in
-   @param mp       The "b" value from montgomery_setup()
-   @return 0 on success
+   @param a         Curve's a value
+   @param modulus   The modulus of the field the ECC curve is in
+   @return          GNUTLS_E_SUCCESS on success
 */
 int
-ecc_projective_dbl_point (ecc_point * P, ecc_point * R, mpz_t a /* a is -3 */,
+ecc_projective_dbl_point (ecc_point * P, ecc_point * R, mpz_t a,
                               mpz_t modulus)
 {
-   /* Using "dbl-1986-cc-2" algorithm.
+   /* Using "dbl-2004-hmv" algorithm.
     * It costs 4M + 4S + half. */
    mpz_t t1, t2;
-   int   err;
+   int err;
 
    if (P == NULL || R == NULL || modulus == NULL)
-     return -1;
+     return GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
 
    if (ecc_projective_isneutral(P, modulus)) {
 

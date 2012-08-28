@@ -33,7 +33,7 @@
  * The original versions use a lot of vars:
  * Z1Z1, Z2Z2, U1, U2, S1, S2, H, I, HHH, r, V, etc.
  * We use only the needed minimum:
- * Z1Z1, Z2Z2, S1, H, HHH, r, V.
+ * S1, H, HHH(J), r, V.
  * The rest of the vars are not needed for final
  * computation, so we calculate them, but don't store.
  * Follow the comments.
@@ -72,7 +72,7 @@ int
 ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
                               mpz_t a, mpz_t modulus)
 {
-    mpz_t t0, t1, Z1Z1, Z2Z2, S1, H, HHH, r, V;
+    mpz_t t0, t1, S1, H, HHH, r, V;
     int err;
 
     if (P == NULL || Q == NULL || R == NULL || modulus == NULL)
@@ -101,7 +101,7 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
         return GNUTLS_E_SUCCESS;
     }
 
-    if ((err = mp_init_multi (&Z1Z1, &Z2Z2, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL)) != 0 )
+    if ((err = mp_init_multi (&S1, &H, &HHH, &r, &V, &t0, &t1, NULL)) != 0 )
         return err;
 
     /* Check if P == Q and do doubling in that case
@@ -113,13 +113,13 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
          * Check if P->y = Q->y, or P->y = -Q->y */
 
         if (mpz_cmp (P->y, Q->y) == 0) {
-            mp_clear_multi (&Z1Z1, &Z2Z2, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
+            mp_clear_multi (&S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
             return ecc_projective_dbl_point (P, R, a, modulus);
         }
 
         mpz_sub (t1, modulus, Q->y);
         if (mpz_cmp (P->y, t1) == 0) {
-            mp_clear_multi (&Z1Z1, &Z2Z2, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
+            mp_clear_multi (&S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
             mpz_set_ui(R->x, 1);
             mpz_set_ui(R->y, 1);
             mpz_set_ui(R->z, 0);
@@ -130,33 +130,44 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
 
     /* check if Z2 == 1 and do "madd" in that case */
     if ((mpz_cmp_ui(Q->z, 1) == 0)) {
-        mp_clear_multi (&Z1Z1, &Z2Z2, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
+        mp_clear_multi (&S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
         return ecc_projective_madd (P, Q, R, a, modulus);
     }
 
     /* no special cases occured
      * do general routine */
 
-    /* Z1Z1 = Z1 * Z1 */
-    mpz_mul (Z1Z1, P->z, P->z);
-    mpz_mod (Z1Z1, Z1Z1, modulus);
+    /* t1 = Z1 * Z1 */
+    /* it is the original Z1Z1 */
+    mpz_mul (t1, P->z, P->z);
+    mpz_mod (t1, t1, modulus);
 
-    /* Z2Z2 = Z2 * Z2 */
-    mpz_mul (Z2Z2, Q->z, Q->z);
-    mpz_mod (Z2Z2, Z2Z2, modulus);
+    /* t0 = Z1 * Z1Z1 */
+    mpz_mul (t0, t1, P->z);
+    mpz_mod (t0, t0, modulus);
+
+    /* H = X2 * Z1Z1 */
+    /* it is the original U2 */
+    mpz_mul (H, t1, Q->x);
+    mpz_mod (H, H, modulus);
+
+    /* r = Y2 * Z1 * Z1Z1 */
+    /* it is the original S2 */
+    mpz_mul (r, t0, Q->y);
+    mpz_mod (r, r, modulus);
+
+    /* S1 = Z2 * Z2 */
+    /* it is the original Z2Z2 */
+    mpz_mul (S1, Q->z, Q->z);
+    mpz_mod (S1, S1, modulus);
 
     /* t0 = X1 * Z2Z2 */
     /* it is the original U1 */
-    mpz_mul (t0, Z2Z2, P->x);
+    mpz_mul (t0, S1, P->x);
     mpz_mod (t0, t0, modulus);
 
-    /* t1 = X2 * Z1Z1 */
-    /* it is the original U2 */
-    mpz_mul (t1, Z1Z1, Q->x);
-    mpz_mod (t1, t1, modulus);
-
-    /* H = U2 - U1 = t1 - t0 */
-    mpz_sub (H, t1, t0);
+    /* H = U2 - U1 = H - t0 */
+    mpz_sub (H, H, t0);
 #ifdef __WITH_EXTENDED_CHECKS
     err = mpz_cmp_ui(H, 0);
     if (err < 0) {
@@ -165,7 +176,7 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
         mpz_set_ui (R->x, 1);
         mpz_set_ui (R->y, 1);
         mpz_set_ui (R->z, 0);
-        mp_clear_multi (&Z1Z1, &Z2Z2, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
+        mp_clear_multi (&S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
 
         return GNUTLS_E_SUCCESS;
     }
@@ -186,22 +197,14 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
     mpz_mod (V, V, modulus);
 
     /* t0 = Z2 * Z2Z2 */
-    mpz_mul (t0, Z2Z2, Q->z);
+    mpz_mul (t0, S1, Q->z);
     mpz_mod (t0, t0, modulus);
     /* S1 = Y1 * Z2 * Z2Z2 */
     mpz_mul (S1, t0, P->y);
     mpz_mod (S1, S1, modulus);
 
-    /* t1 = Z1 * Z1Z1 */
-    mpz_mul (t1, Z1Z1, P->z);
-    mpz_mod (t1, t1, modulus);
-    /* t0 = Y2 * Z1 * Z1Z1 */
-    /* it is the original S2 */
-    mpz_mul (t0, t1, Q->y);
-    mpz_mod (t0, t0, modulus);
-
-    /* r = S2 - S1 = t0 - S1 */
-    mpz_sub (r, t0, S1);
+    /* r = S2 - S1 = r - S1 */
+    mpz_sub (r, r, S1);
     if (mpz_cmp_ui (r, 0) < 0)
         mpz_add (r, r, modulus);
 
@@ -249,7 +252,7 @@ ecc_projective_add_point_ng (ecc_point * P, ecc_point * Q, ecc_point * R,
     mpz_mul (R->z, t1, H);
     mpz_mod (R->z, R->z, modulus);
 
-    mp_clear_multi (&Z1Z1, &Z2Z2, &S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
+    mp_clear_multi (&S1, &H, &HHH, &r, &V, &t0, &t1, NULL);
 
     return GNUTLS_E_SUCCESS;
 }

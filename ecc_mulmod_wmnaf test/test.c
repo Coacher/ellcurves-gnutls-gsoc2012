@@ -23,7 +23,7 @@ int main(void) {
     G       = ecc_new_point();
     Rclassic= ecc_new_point();
     Rwmnaf  = ecc_new_point();
-    
+
     printf("\nRunning tests for ecc_mulmod_wmnaf()\n\n");
     GNUTLS_ECC_CURVE_LOOP (
         printf("Running test sequence for curve %s with id:%i\n", p->name, p->id);
@@ -81,6 +81,11 @@ int main(void) {
     mpz_set_ui(G->x,    0);
     mpz_set_ui(G->y,    0);
     mpz_set_ui(G->z,    0);
+    ecc_mulmod_wmnaf(k, G,     Rwmnaf,  a, modulus, MAP);
+
+    mpz_set_ui(G->x,    100);
+    mpz_set_ui(G->y,    200);
+    mpz_set_ui(G->z,    300);
     ecc_mulmod_wmnaf(k, G,     Rwmnaf,  a, modulus, MAP);
 
     printf("Sanity checks successfully passed.\n");

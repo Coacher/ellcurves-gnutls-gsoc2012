@@ -36,19 +36,19 @@
    @param R        [out] The destination of the double
    @param a        Curve's a value
    @param modulus  The modulus of the field the ECC curve is in
-   @return 0 on success
+   @return         GNUTLS_E_SUCCESS on success
 */
 int
 ecc_projective_add_point (ecc_point * P, ecc_point * Q, ecc_point * R,
                               mpz_t a, mpz_t modulus)
 {
-  /* Using "add-1998-hnm" algorithm.
+  /* Using "(m)add-2004-hmv" algorithm
    * It costs 12M + 4S + half. */
   mpz_t t1, t2, x, y, z;
   int err;
 
   if (P == NULL || Q == NULL || R == NULL || modulus == NULL)
-    return -1;
+    return GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
 
   if ((err = mp_init_multi (&t1, &t2, &x, &y, &z, NULL)) != 0)
     {
@@ -76,7 +76,7 @@ ecc_projective_add_point (ecc_point * P, ecc_point * Q, ecc_point * R,
           mpz_set_ui(R->x, 1);
           mpz_set_ui(R->y, 1);
           mpz_set_ui(R->z, 0);
-          return 0;
+          return GNUTLS_E_SUCCESS;
         }
     }
 
@@ -87,7 +87,7 @@ ecc_projective_add_point (ecc_point * P, ecc_point * Q, ecc_point * R,
     mpz_set (R->y, P->y);
     mpz_set (R->z, P->z);
 
-    return 0;
+    return GNUTLS_E_SUCCESS;
   }
 
   if (!ecc_projective_isneutral(P, modulus)) {
@@ -97,7 +97,7 @@ ecc_projective_add_point (ecc_point * P, ecc_point * Q, ecc_point * R,
     mpz_set (R->y, Q->y);
     mpz_set (R->z, Q->z);
 
-    return 0;
+    return GNUTLS_E_SUCCESS;
   }
 
   mpz_set (x, P->x);
@@ -238,7 +238,7 @@ ecc_projective_add_point (ecc_point * P, ecc_point * Q, ecc_point * R,
   mpz_set (R->y, y);
   mpz_set (R->z, z);
 
-  err = 0;
+  err = GNUTLS_E_SUCCESS;
 
   mp_clear_multi (&t1, &t2, &x, &y, &z, NULL);
   return err;

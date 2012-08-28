@@ -143,7 +143,7 @@ ecc_projective_dbl_point (ecc_point * P, ecc_point * R, mpz_t a,
         mpz_add(R->x, R->x, modulus);
      }
 
-     /* Y = Y - X */     
+     /* Y = Y - X */
      mpz_sub(R->y, R->y, R->x);
      if (mpz_cmp_ui(R->y, 0) < 0) {
         mpz_add(R->y, R->y, modulus);

@@ -51,7 +51,7 @@ ecc_projective_dbl_point (ecc_point * P, ecc_point * R, mpz_t a,
    if (P == NULL || R == NULL || modulus == NULL)
      return GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
 
-   if (ecc_projective_isneutral(P, modulus)) {
+   if ( (err = ecc_projective_isneutral(P, modulus)) == 1 ) {
 
      if ((err = mp_init_multi(&t1, &t2, NULL)) != 0) {
         return err;
@@ -161,13 +161,15 @@ ecc_projective_dbl_point (ecc_point * P, ecc_point * R, mpz_t a,
 
      mp_clear_multi(&t1, &t2, NULL);
      return err;
-   } else {
+   } else if (err == 0) {
      /* 2*neutral = neutral */
      mpz_set_ui(R->x, 1);
      mpz_set_ui(R->y, 1);
      mpz_set_ui(R->z, 0);
 
      return GNUTLS_E_SUCCESS;
+   } else {
+     return err;
    }
 }
 #endif

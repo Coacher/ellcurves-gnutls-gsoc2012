@@ -80,7 +80,7 @@ ecc_projective_add_point (ecc_point * P, ecc_point * Q, ecc_point * R,
         }
     }
 
-  if (!ecc_projective_isneutral(Q, modulus)) {
+  if ( (err = ecc_projective_isneutral(Q, modulus)) == 0 ) {
     /* P + Q = P + neutral = P */
 
     mpz_set (R->x, P->x);
@@ -88,9 +88,12 @@ ecc_projective_add_point (ecc_point * P, ecc_point * Q, ecc_point * R,
     mpz_set (R->z, P->z);
 
     return GNUTLS_E_SUCCESS;
+  } else if (err < 0) {
+    mp_clear_multi (&t1, &t2, &x, &y, &z, NULL);
+    return err;
   }
 
-  if (!ecc_projective_isneutral(P, modulus)) {
+  if ( (err = ecc_projective_isneutral(P, modulus)) == 0 ) {
     /* P + Q = neutral + Q = Q */
 
     mpz_set (R->x, Q->x);
@@ -98,6 +101,9 @@ ecc_projective_add_point (ecc_point * P, ecc_point * Q, ecc_point * R,
     mpz_set (R->z, Q->z);
 
     return GNUTLS_E_SUCCESS;
+  } else if (err < 0) {
+    mp_clear_multi (&t1, &t2, &x, &y, &z, NULL);
+    return err;
   }
 
   mpz_set (x, P->x);

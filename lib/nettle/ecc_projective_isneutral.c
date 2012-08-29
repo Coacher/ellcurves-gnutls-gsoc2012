@@ -27,7 +27,7 @@
    @param P        The point to check
    @param modulus  The modulus of the field the ECC curve is in
    @return         0 if given point is a neutral point
-   @return         1 if given point not a neutral point
+   @return         1 if given point is not a neutral point
    @return         negative value in case of error
 */
 int
@@ -36,7 +36,7 @@ ecc_projective_isneutral (ecc_point * P, mpz_t modulus)
   mpz_t t1, t2;
   int err;
 
-  if (P == NULL)
+  if ( P == NULL || modulus == NULL )
     return GNUTLS_E_RECEIVED_ILLEGAL_PARAMETER;
 
   /*

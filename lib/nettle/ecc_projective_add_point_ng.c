@@ -44,7 +44,7 @@
 /* Check if H == 0
  * In this case P + Q = neutral element.
  *
- * In most of the cases below when H == 0 then Z == 0
+ * In all of the cases below when H == 0 then Z == 0
  * and the resulting point lies at infinity.
  *
  * And the only point on the curve with Z == 0 MUST be

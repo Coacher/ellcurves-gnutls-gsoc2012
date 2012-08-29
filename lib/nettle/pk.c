@@ -381,6 +381,9 @@ _wrap_nettle_pk_sign (gnutls_pk_algorithm_t algo,
         struct dsa_signature sig;
         int curve_id = pk_params->flags;
 
+        if (is_supported_curve(curve_id) == 0)
+          return gnutls_assert_val(GNUTLS_E_ECC_UNSUPPORTED_CURVE);
+
         _ecc_params_to_privkey(pk_params, &priv);
 
         dsa_signature_init (&sig);
@@ -393,7 +396,7 @@ _wrap_nettle_pk_sign (gnutls_pk_algorithm_t algo,
             hash_len = vdata->size;
           }
 
-        ret = ecc_sign_hash(vdata->data, hash_len, 
+        ret = ecc_sign_hash(vdata->data, hash_len,
                             &sig, NULL, rnd_func, &priv, curve_id);
         if (ret != 0)
           {
@@ -562,6 +565,9 @@ _wrap_nettle_pk_verify (gnutls_pk_algorithm_t algo,
         struct dsa_signature sig;
         int stat;
         int curve_id = pk_params->flags;
+
+        if (is_supported_curve(curve_id) == 0)
+          return gnutls_assert_val(GNUTLS_E_ECC_UNSUPPORTED_CURVE);
 
         ret = _gnutls_decode_ber_rs (signature, &tmp[0], &tmp[1]);
         if (ret < 0)

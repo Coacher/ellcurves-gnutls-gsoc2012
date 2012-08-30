@@ -26,7 +26,7 @@
 
 #include "ecc.h"
 
-/* needed constants, see ecc.h */
+/* needed constants */
 #define BASEW   (1 << WMNAF_WINSIZE)       /* 2^w */
 #define BASEWW  (1 << (WMNAF_WINSIZE + 1)) /* 2^(w+1) */
 #define WBITS   (BASEWW - 1)

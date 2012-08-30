@@ -114,16 +114,16 @@ int ecc_make_key(void *random_ctx, nettle_random_func random, ecc_key *key, cons
 int ecc_make_key_ex(void *random_ctx, nettle_random_func random, ecc_key *key, mpz_t prime, mpz_t order, mpz_t A, mpz_t B, mpz_t Gx, mpz_t Gy, gnutls_ecc_curve_t id, int timing_res);
 void ecc_free(ecc_key *key);
 
-int  ecc_shared_secret(ecc_key *private_key, ecc_key *public_key, 
+int  ecc_shared_secret(ecc_key *private_key, ecc_key *public_key,
                        unsigned char *out, unsigned long *outlen);
 
-int ecc_sign_hash(const unsigned char *in,  unsigned long inlen, 
+int ecc_sign_hash(const unsigned char *in,  unsigned long inlen,
                         struct dsa_signature *signature,
                         void *random_ctx, nettle_random_func random,
                         ecc_key *key, gnutls_ecc_curve_t id);
 
 int  ecc_verify_hash(struct dsa_signature * signature,
-                     const unsigned char *hash, unsigned long hashlen, 
+                     const unsigned char *hash, unsigned long hashlen,
                      int *stat, ecc_key *key, gnutls_ecc_curve_t id);
 
 /* low level functions */

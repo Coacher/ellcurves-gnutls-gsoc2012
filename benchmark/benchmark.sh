@@ -41,15 +41,7 @@ BITS=(
 # a file named "element.patch"
 PATCHES=(
 "default"
-"add_everything_new_but_not_enable"
-"enable_neutral_point_support_in_standard_functions"
-"enable_wmnaf_cache_init_deinit"
-"enable_wmnaf_muliplication_everywhere"
-"enable_wmnaf_with_caching_everywhere"
-"enable_wmnaf_with_caching_with_timing"
-# the set of patches above effectively includes all changes we made
-"disable_fixed_window"
-"disable_add_point_ng"
+"wmnaf"
 )
 
 die() {

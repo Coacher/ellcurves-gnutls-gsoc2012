@@ -6,3 +6,14 @@ If you want to test your own patches simply add them to PATCHES array in `benchm
 The `patches` directory contains several patches we already use for testing.
 
 When run from root user this utility will flush memory caches before running every test.
+
+Patches with the name ${number}_bits.patch (like 521_bits.patch) are used for switching
+bit length. You shouldn't change them.
+
+The rest of the patches are made for a step-by-step testing of implemented features and
+their names are self-describing. They were used some time ago and now are not needed.
+Keep them for historical reasons.
+
+The only patch is tested now is "wmnaf.patch" which should be generated manually
+via command `diff -Nur gnutls/lib/ lib/ > benchmark/patches/wmnaf.patch` and includes
+all features added and enabled.

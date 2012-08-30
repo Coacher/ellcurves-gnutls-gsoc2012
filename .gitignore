@@ -24,3 +24,6 @@ DEADJOE
 *.la
 *.a
 *.lai
+
+# ignore this patch as it is changed after every commit
+benchmark/patches/wmnaf.patch

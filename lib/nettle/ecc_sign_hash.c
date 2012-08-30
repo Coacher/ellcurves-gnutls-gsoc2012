@@ -44,8 +44,8 @@
 int
 ecc_sign_hash (const unsigned char *in, unsigned long inlen,
                struct dsa_signature *sig,
-               void *random_ctx, nettle_random_func random, ecc_key * key,
-               gnutls_ecc_curve_t curve_id)
+               void *random_ctx, nettle_random_func random,
+               ecc_key * key, gnutls_ecc_curve_t curve_id)
 {
   ecc_key pubkey;
   mpz_t e;

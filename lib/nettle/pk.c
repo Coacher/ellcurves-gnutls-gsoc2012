@@ -21,7 +21,7 @@
  */
 
 /* This file contains the functions needed for RSA/DSA public key
- * encryption and signatures. 
+ * encryption and signatures.
  */
 
 #include <gnutls_int.h>
@@ -81,7 +81,7 @@ _rsa_params_to_privkey (const gnutls_pk_params_st * pk_params,
 
 }
 
-static void 
+static void
 _ecc_params_to_privkey(const gnutls_pk_params_st * pk_params,
                        ecc_key * priv)
 {
@@ -103,7 +103,7 @@ static void _ecc_params_clear(ecc_key * key)
   mpz_clear(key->pubkey.z);
 }
 
-static void 
+static void
 _ecc_params_to_pubkey(const gnutls_pk_params_st * pk_params,
                        ecc_key * pub)
 {

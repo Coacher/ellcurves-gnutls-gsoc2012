@@ -56,7 +56,7 @@ static void _ecc_wmnaf_cache_entry_free(gnutls_ecc_curve_cache_entry_t* p) {
 void ecc_wmnaf_cache_free(void) {
     gnutls_ecc_curve_cache_entry_t* p = ecc_wmnaf_cache;
     if (p) {
-        for (; p->id; ++p) {
+        for (; p->id != GNUTLS_ECC_CURVE_INVALID; ++p) {
             _ecc_wmnaf_cache_entry_free(p);
         }
 
@@ -186,7 +186,7 @@ int ecc_wmnaf_cache_init(void) {
     }
 
     /* nullify last cache entry id */
-    ret[++j].id = 0;
+    ret[j].id = GNUTLS_ECC_CURVE_INVALID;
 
     err = GNUTLS_E_SUCCESS;
 

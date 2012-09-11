@@ -45,7 +45,7 @@
  * This function mimics mpz_tstbit behavior for positive numbers in both cases.
  */
 static int
-mpz_unitstbit (mpz_srcptr u, mp_bitcnt_t bit_index) __GMP_NOTHROW
+mpz_unitstbit (mpz_t u, mp_bitcnt_t bit_index) __GMP_NOTHROW
 {
   mp_srcptr      u_ptr      = u->_mp_d;
   mp_size_t      size       = u->_mp_size;
